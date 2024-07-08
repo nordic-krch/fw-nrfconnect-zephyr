@@ -89,8 +89,7 @@ void z_fatal_error(unsigned int reason, const z_arch_esf_t *esf)
 	 * appropriate.
 	 */
 	unsigned int key = arch_irq_lock();
-	struct k_thread *thread = IS_ENABLED(CONFIG_MULTITHREADING) ?
-			_current : NULL;
+	struct k_thread *thread = _current;
 
 	/* twister looks for the "ZEPHYR FATAL ERROR" string, don't
 	 * change it without also updating twister
@@ -110,10 +109,10 @@ void z_fatal_error(unsigned int reason, const z_arch_esf_t *esf)
 	}
 #endif /* CONFIG_ARCH_HAS_NESTED_EXCEPTION_DETECTION */
 
-	LOG_ERR("Current thread: %p (%s)", thread,
-		thread_name_get(thread));
-
-	coredump(reason, esf, thread);
+	if (IS_ENABLED(CONFIG_MULTITHREADING)) {
+		LOG_ERR("Current thread: %p (%s)", thread, thread_name_get(thread));
+		coredump(reason, esf, thread);
+	}
 
 	k_sys_fatal_error_handler(reason, esf);
 
