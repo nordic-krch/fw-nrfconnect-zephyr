@@ -43,7 +43,7 @@ void *_vector_table_pointer;
 
 #define VECTOR_ADDRESS ((uintptr_t)_vector_start)
 
-static inline void relocate_vector_table(void)
+void __weak relocate_vector_table(void)
 {
 	SCB->VTOR = VECTOR_ADDRESS & SCB_VTOR_TBLOFF_Msk;
 	barrier_dsync_fence_full();
