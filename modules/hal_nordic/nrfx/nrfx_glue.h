@@ -327,12 +327,12 @@ void nrfx_busy_wait(uint32_t usec_to_wait);
 /** @brief Bitmask that defines PPI channels that are reserved for use outside of the nrfx library. */
 #define NRFX_PPI_CHANNELS_USED    (NRFX_PPI_CHANNELS_USED_BY_BT_CTLR |    \
 				   NRFX_PPI_CHANNELS_USED_BY_802154_DRV | \
-				   NRFX_PPI_CHANNELS_USED_BY_MPSL)
+				   NRFX_PPI_CHANNELS_USED_BY_MPSL | NRFX_PPI_CHANNELS_USED_BY_SD)
 
 /** @brief Bitmask that defines PPI groups that are reserved for use outside of the nrfx library. */
 #define NRFX_PPI_GROUPS_USED      (NRFX_PPI_GROUPS_USED_BY_BT_CTLR |    \
 				   NRFX_PPI_GROUPS_USED_BY_802154_DRV | \
-				   NRFX_PPI_GROUPS_USED_BY_MPSL)
+				   NRFX_PPI_GROUPS_USED_BY_MPSL | NRFX_PPI_GROUPS_USED_BY_SD)
 
 /** @brief Bitmask that defines GPIOTE130 channels reserved for use outside of the nrfx library. */
 #define NRFX_GPIOTE130_CHANNELS_USED ~NRFX_CONFIG_MASK_DT(DT_NODELABEL(gpiote130), owned_channels)
@@ -385,6 +385,15 @@ void nrfx_busy_wait(uint32_t usec_to_wait);
 #else
 #define NRFX_PPI_CHANNELS_USED_BY_MPSL   0
 #define NRFX_PPI_GROUPS_USED_BY_MPSL     0
+#endif
+
+#if defined(CONFIG_SOFTDEVICE)
+#include <nrf_sd_def.h>
+#define NRFX_PPI_CHANNELS_USED_BY_SD   SD_PPI_CHANNELS_USED
+#define NRFX_PPI_GROUPS_USED_BY_SD     SD_PPI_GROUPS_USED
+#else
+#define NRFX_PPI_CHANNELS_USED_BY_SD   0
+#define NRFX_PPI_GROUPS_USED_BY_SD     0
 #endif
 
 #if defined(NRF_802154_VERIFY_PERIPHS_ALLOC_AGAINST_MPSL)
