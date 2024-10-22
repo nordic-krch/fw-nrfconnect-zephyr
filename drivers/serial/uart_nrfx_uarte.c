@@ -2185,9 +2185,9 @@ static int uarte_nrfx_pm_action(const struct device *dev,
 
 		nrf_uarte_enable(uarte);
 #if UARTE_BAUDRATE_RETENTION_WORKAROUND
-		nrf_uarte_baudrate_set(get_uarte_instance(dev),
+	nrf_uarte_baudrate_set(get_uarte_instance(dev),
 			COND_CODE_1(CONFIG_UART_USE_RUNTIME_CONFIGURE,
-				(data->nrf_baudrate), (cfg->nrf_baudrate));
+				(data->nrf_baudrate), (cfg->nrf_baudrate)));
 #endif
 
 #ifdef UARTE_ANY_ASYNC
