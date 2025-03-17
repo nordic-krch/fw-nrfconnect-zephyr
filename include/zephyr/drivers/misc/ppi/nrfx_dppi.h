@@ -4,8 +4,43 @@
 #include <nrf.h>
 #include <zephyr/kernel.h>
 
+#define DPPI_MSG_ALLOC 0
+#define DPPI_MSG_ALLOC_RSP 1
+#define DPPI_MSG_FREE 2
+
+#define DPPI_RESULT_OK 0
+#define DPPI_RESULT_FAIL 1
+
 typedef uint32_t nrf_dppi_handle_t;
 typedef uint32_t nrf_dppi_group_handle_t;
+
+struct dppi_msg_alloc {
+	uint32_t prod_id;
+	uint32_t cons_id;
+};
+
+struct dppi_msg_free {
+	nrf_dppi_handle_t handle;
+};
+
+struct dppi_msg_alloc_rsp {
+	uint32_t result;
+	nrf_dppi_handle_t handle;
+};
+
+struct dppi_msg {
+	uint32_t type;
+	union {
+		struct dppi_msg_alloc alloc;
+		struct dppi_msg_alloc_rsp alloc_rsp;
+		struct dppi_msg_free free;
+	};
+};
+
+#define DPPI_MSG_ALLOC_LEN (offsetof(struct dppi_msg, alloc) + sizeof(struct dppi_msg_alloc))
+#define DPPI_MSG_ALLOC_RSP_LEN \
+	(offsetof(struct dppi_msg, alloc_rsp) + sizeof(struct dppi_msg_alloc_rsp))
+#define DPPI_MSG_FREE_LEN (offsetof(struct dppi_msg, free) + sizeof(struct dppi_msg_free))
 
 uint32_t nrf_dppi_get_domain_id(uint32_t addr);
 
@@ -19,6 +54,16 @@ uint32_t nrf_dppi_get_domain_id(uint32_t addr);
  * @retval -ENOMEM if there is not enough resources to allocate the connection.
  */
 int nrf_dppi_domain_conn_alloc(uint32_t producer, uint32_t consumer, nrf_dppi_handle_t *handle);
+
+/** @brief Reserve channel in an instance.
+ *
+ * @param reg DPPIC instance.
+ * @param ch  Channel.
+ *
+ * @retval 0 Successful reservation.
+ * @retval -EINVAL Channel cannot be reserved.
+ */
+int nrf_dppi_chan_reserve(NRF_DPPIC_Type *reg, uint32_t ch);
 
 /** @brief Attach an endpoint to the connection.
  *

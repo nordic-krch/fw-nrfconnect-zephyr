@@ -2,7 +2,7 @@
 #define ZEPHYR_DRIVERS_MISC_NORDIC_DPPI_NRF54H_H__
 
 #include <zephyr/drivers/misc/ppi/nrfx_dppi.h>
-#include "nrfx_dppi_routes.h"
+#include <zephyr/drivers/misc/ppi/nrfx_dppi_routes.h>
 
 enum nrf_dppi_domain {
 	/* Global domain */

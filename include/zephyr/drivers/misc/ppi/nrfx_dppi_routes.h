@@ -69,14 +69,17 @@ typedef uint32_t nrf_dppi_route_handle_t;
 		} \
 	}
 
+#define PPIB_REG(id) (NRF_PPIB_Type *)DT_REG_ADDR(DT_NODELABEL(ppib##id))
+
 #define PPIB_EXT_NODE_DEFINE(_id1, _id2, _ch_id, _off1, _off2) \
 [NRF_DPPI_NODE_PPIB##_id1##_##_id2] = { \
+		.name = "ppib" STRINGIFY(_id1) "_" STRINGIFY(_id2), \
 		.type = NRF_DPPI_NODE_BRIDGE, \
 		.bridge = { \
-			.channels = &channels[NRF_DPPI_NODE_PPIB_##ch_id], \
-			.reg = {NRF_PPIB##_id1, NRF_PPIB##_id2} \
+			.channels = &channels[NRF_DPPI_NODE_PPIB##_ch_id], \
+			.reg = {PPIB_REG(_id1), PPIB_REG(_id2)}, \
+			.ch_off = { _off1, _off2 } \
 		}, \
-		.ch_off = { _off1, _off2 } \
 	}
 
 #define NRF_DPPI_ROUTE_DEFINE(_name, _first_domain, _nodes) \
