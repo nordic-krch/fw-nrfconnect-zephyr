@@ -1,0 +1,15 @@
+&timer130 {
+	status = "reserved";
+};
+
+&timer131 {
+	status = "reserved";
+};
+
+&timer133 {
+	status = "reserved";
+};
+
+&timer120 {
+	status = "reserved";
+};
