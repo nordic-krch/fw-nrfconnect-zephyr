@@ -35,11 +35,18 @@
 			ranges = <0x0 0x2f011000 0x41000>;
 
 			cpusec_cpuapp_ipc_shm: memory@0 {
-				reg = <0x0 DT_SIZE_K(2)>;
+				reg = <0x0 DT_SIZE_K(1)>;
+			};
+			cpusec_cpuapp_ipc_shm2: memory@400 {
+				reg = <0x400 DT_SIZE_K(1)>;
 			};
 
 			cpuapp_cpusec_ipc_shm: memory@800 {
-				reg = <0x800 DT_SIZE_K(2)>;
+				reg = <0x800 DT_SIZE_K(1)>;
+			};
+
+			cpuapp_cpusec_ipc_shm2: memory@c00 {
+				reg = <0xc00 DT_SIZE_K(1)>;
 			};
 
 			cpuapp_data: memory@1000 {

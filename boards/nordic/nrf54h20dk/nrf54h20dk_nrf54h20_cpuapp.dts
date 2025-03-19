@@ -137,7 +137,7 @@
 	 *  - 14: cpuapp-cpuflpr
 	 *  - 18: cpuapp-cpurad
 	 */
-	nordic,interrupt-mapping = <0x00046041 0>;
+	nordic,interrupt-mapping = <0x00046043 0>;
 };
 
 &cpurad_bellboard {
@@ -153,6 +153,13 @@
 	mbox-names = "tx", "rx";
 	tx-region = <&cpuapp_cpusec_ipc_shm>;
 	rx-region = <&cpusec_cpuapp_ipc_shm>;
+};
+
+&cpusec_cpuapp_ipc_b {
+	status = "okay";
+	mbox-names = "tx", "rx";
+	tx-region = <&cpuapp_cpusec_ipc_shm2>;
+	rx-region = <&cpusec_cpuapp_ipc_shm2>;
 };
 
 &cpusec_bellboard {
