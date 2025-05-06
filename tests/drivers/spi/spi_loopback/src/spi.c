@@ -47,8 +47,8 @@ LOG_MODULE_REGISTER(spi_loopback);
 #define DMA_ENABLED_STR
 #endif /* CONFIG_DMA */
 
-#define SPI_OP(frame_size) SPI_OP_MODE_MASTER | SPI_MODE_CPOL | MODE_LOOP | \
-	       SPI_MODE_CPHA | SPI_WORD_SET(frame_size) | SPI_LINES_SINGLE
+#define SPI_OP(frame_size) SPI_OP_MODE_MASTER | /*SPI_MODE_CPOL*/0 | MODE_LOOP | \
+	       /*SPI_MODE_CPHA*/0 | SPI_WORD_SET(frame_size) | SPI_LINES_SINGLE
 
 static struct spi_dt_spec spi_fast = SPI_DT_SPEC_GET(SPI_FAST_DEV, SPI_OP(FRAME_SIZE), 0);
 static struct spi_dt_spec spi_slow = SPI_DT_SPEC_GET(SPI_SLOW_DEV, SPI_OP(FRAME_SIZE), 0);
@@ -722,7 +722,103 @@ static int spi_resource_lock_test(struct spi_dt_spec *lock_spec,
 	return 0;
 }
 
-ZTEST(spi_loopback, test_spi_loopback)
+static void run_spi_loopback(struct spi_dt_spec *spec)
+{
+	struct k_poll_signal local_async_sig = K_POLL_SIGNAL_INITIALIZER(async_sig);
+	struct k_poll_event local_async_evt =
+	K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SIGNAL,
+				 K_POLL_MODE_NOTIFY_ONLY,
+				 &async_sig);
+
+	async_evt = local_async_evt;
+	async_sig = local_async_sig;
+
+	k_sem_init(&caller, 0, 1);
+#if (CONFIG_SPI_ASYNC)
+	struct k_thread async_thread;
+	k_tid_t async_thread_id;
+#endif
+
+	LOG_INF("SPI test on buffers TX/RX %p/%p" FRAME_SIZE_STR DMA_ENABLED_STR,
+			buffer_tx,
+			buffer_rx);
+
+#if (CONFIG_SPI_ASYNC)
+	async_thread_id = k_thread_create(&async_thread,
+					  spi_async_stack, STACK_SIZE,
+					  spi_async_call_cb,
+					  &async_evt, &caller, NULL,
+					  K_PRIO_COOP(7), 0, K_NO_WAIT);
+#endif
+	zassert_true(spi_is_ready_dt(spec), "spi lookback device is not ready");
+
+	LOG_INF("SPI test freq:%d flags:%08x", spec->config.frequency, spec->config.operation);
+
+	if (spi_complete_multiple(spec) ||
+	    spi_complete_loop(spec) ||
+	    spi_null_tx_buf(spec) ||
+	    spi_rx_half_start(spec) ||
+	    spi_rx_half_end(spec) ||
+	    spi_rx_every_4(spec) ||
+	    spi_rx_bigger_than_tx(spec) ||
+	    spi_complete_large_transfers(spec)
+#if (CONFIG_SPI_ASYNC)
+	    || spi_async_call(spec)
+#endif
+	    ) {
+		goto end;
+	}
+
+	LOG_INF("All tx/rx passed");
+end:
+#if (CONFIG_SPI_ASYNC)
+	k_thread_abort(async_thread_id);
+#else
+	;
+#endif
+}
+
+#if 0
+ZTEST(spi_loopback, test_spi_loopback2)
+{
+	run_spi_loopback(2000000, 0, 0);
+}
+#endif
+
+#define LOOPBACK_DEFINE(idx, args) \
+	ZTEST(spi_loopback, test_spi_loopback##idx) { \
+		static struct spi_dt_spec spec; \
+	        spec = spi_slow; \
+		spec.config.frequency = GET_ARG_N(1, __DEBRACKET args); \
+		spec.config.operation |= GET_ARG_N(2, __DEBRACKET args); \
+		spec.config.operation |= GET_ARG_N(3, __DEBRACKET args); \
+		run_spi_loopback(&spec); \
+	}
+
+FOR_EACH_IDX(LOOPBACK_DEFINE, (),
+		(500000, 0, 0),
+		(1000000, 0, 0),
+		(2000000, 0, 0),
+		/*(4000000, 0, 0),*/
+		(8000000, 0, 0),
+		(500000, SPI_MODE_CPHA, 0),
+		(1000000, SPI_MODE_CPHA, 0),
+		/*(2000000, SPI_MODE_CPHA, 0),*/
+		(4000000, SPI_MODE_CPHA, 0),
+		(8000000, SPI_MODE_CPHA, 0),
+		(500000, SPI_MODE_CPHA, SPI_MODE_CPOL),
+		(1000000, SPI_MODE_CPHA, SPI_MODE_CPOL),
+		/*(2000000, SPI_MODE_CPHA, SPI_MODE_CPOL),*/
+		(4000000, SPI_MODE_CPHA, SPI_MODE_CPOL),
+		(8000000, SPI_MODE_CPHA, SPI_MODE_CPOL),
+		(500000, 0, SPI_MODE_CPOL),
+		(1000000, 0, SPI_MODE_CPOL),
+		(2000000, 0, SPI_MODE_CPOL),
+		/*(4000000, 0, SPI_MODE_CPOL),*/
+		(8000000, 0, SPI_MODE_CPOL)
+		)
+
+ZTEST(_spi_loopback, test_spi_loopback)
 {
 #if (CONFIG_SPI_ASYNC)
 	struct k_thread async_thread;
