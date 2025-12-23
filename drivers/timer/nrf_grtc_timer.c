@@ -16,6 +16,8 @@
 #include <nrfx_grtc.h>
 #include <zephyr/sys/math_extras.h>
 #include <nrf_sys_event.h>
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(nrf_grtc_timer);
 
 #define GRTC_NODE DT_NODELABEL(grtc)
 #define HFCLK_NODE DT_PHANDLE_BY_NAME(GRTC_NODE, clocks, hfclock)
@@ -186,7 +188,7 @@ int32_t z_nrf_grtc_timer_chan_alloc(void)
 	if (ext_channels_allocated >= EXT_CHAN_COUNT) {
 		return -ENOMEM;
 	}
-	err_code = nrfx_grtc_channel_alloc(&chan, 0);
+	err_code = nrfx_grtc_channel_alloc(&chan);
 	if (err_code < 0) {
 		return -ENOMEM;
 	}
@@ -203,7 +205,7 @@ int32_t z_nrf_grtc_timer_special_chan_alloc(void)
 	if (ext_channels_allocated >= EXT_CHAN_COUNT) {
 		return -ENOMEM;
 	}
-	err_code = nrfx_grtc_channel_alloc(&chan, NRFX_GRTC_EXTENDED_CHANNEL_FEATURES);
+	err_code = nrfx_grtc_extended_channel_alloc(&chan);
 	if (err_code < 0) {
 		return -ENOMEM;
 	}
@@ -301,10 +303,9 @@ static void interval_set_nolocks(int32_t chan, uint32_t interval_value,
 		.p_context = user_data,
 		.channel = chan,
 	};
-	
-	nrfx_grtc_syscounter_cc_interval_set(chan, interval_value);
+
 	nrfx_grtc_channel_callback_set(chan, user_channel_data.handler, user_channel_data.p_context);
-	
+
 }
 
 static void interval_set(int32_t chan, uint32_t interval_value,
@@ -334,6 +335,7 @@ int z_nrf_grtc_timer_interval_set(int32_t chan, uint32_t interval_value,
 int z_nrf_grtc_timer_interval_stop(int32_t chan)
 {
 	nrfy_grtc_sys_counter_compare_event_disable(NRF_GRTC, chan);
+	return 0;
 }
 
 int z_nrf_grtc_timer_set(int32_t chan, uint64_t target_time,
@@ -553,7 +555,8 @@ static int sys_clock_driver_init(void)
 		return err_code;
 	}
 
-	err_code = nrfx_grtc_channel_alloc(&system_clock_channel_data.channel, 0);
+	err_code = nrfx_grtc_channel_alloc(&system_clock_channel_data.channel);
+	LOG_ERR("ch:%d", system_clock_channel_data.channel);
 	if (err_code < 0) {
 		return err_code;
 	}
