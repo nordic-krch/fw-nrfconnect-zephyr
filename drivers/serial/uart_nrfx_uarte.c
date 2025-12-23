@@ -27,6 +27,9 @@
 
 LOG_MODULE_REGISTER(uart_nrfx_uarte, CONFIG_UART_LOG_LEVEL);
 
+#define NRF_PERIPH_GET_FREQUENCY(node) \
+	(DT_SAME_NODE(node, DT_NODELABEL(uart00)) ? MHZ(128) : MHZ(16))
+
 #define RX_FLUSH_WORKAROUND 1
 
 #define UARTE(idx)                DT_NODELABEL(uart##idx)
