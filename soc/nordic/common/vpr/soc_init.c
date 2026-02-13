@@ -13,6 +13,11 @@ static int vpr_init(void)
 	 */
 	nrf_vpr_csr_rtperiph_enable_set(true);
 
+	/* Set deep sleep as the default sleep method. */
+	csr_write(VPRCSR_NORDIC_VPRNORDICSLEEPCTRL,
+		  VPRCSR_NORDIC_VPRNORDICSLEEPCTRL_SLEEPSTATE_DEEPSLEEP);
+	nrf_barrier_w();
+
 	return 0;
 }
 
