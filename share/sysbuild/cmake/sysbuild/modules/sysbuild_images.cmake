@@ -46,5 +46,5 @@ endforeach()
 sysbuild_module_call(POST_CMAKE MODULES ${SYSBUILD_MODULE_NAMES} IMAGES ${IMAGES})
 
 sysbuild_module_call(PRE_DOMAINS MODULES ${SYSBUILD_MODULE_NAMES} IMAGES ${IMAGES})
-include(${sysbuild_toplevel_SOURCE_DIR}/cmake/domains.cmake)
+include(${sysbuild_toplevel_SOURCE_DIR}/cmake/sysbuild/domains.cmake)
 sysbuild_module_call(POST_DOMAINS MODULES ${SYSBUILD_MODULE_NAMES} IMAGES ${IMAGES})
