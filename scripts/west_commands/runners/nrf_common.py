@@ -370,7 +370,7 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
                 erase_arg = 'ERASE_ALL'
             elif self.erase_mode:
                 erase_arg = erase_mode
-            elif self.family in ('nrf54l', 'nrf71'):
+            elif self.family == 'nrf54l':
                 erase_arg = 'ERASE_NONE'
             else:
                 erase_arg = 'ERASE_RANGES_TOUCHED_BY_FIRMWARE'
