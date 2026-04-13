@@ -15,5 +15,14 @@ toolchain:
 supported:
   - uart
   - clock_control
-  - pin_ctrl
+  - pinctrl
+  - gpio
+  - dma
+  - spi
+  - i2c
+  - adc
+  - counter
+  - watchdog
+  - pwm
+  - flash
 vendor: infineon

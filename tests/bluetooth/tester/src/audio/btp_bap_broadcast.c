@@ -15,6 +15,7 @@
 
 #include <zephyr/autoconf.h>
 #include <zephyr/bluetooth/addr.h>
+#include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/audio/cap.h>
@@ -75,8 +76,9 @@ struct btp_bap_broadcast_local_source *
 btp_bap_broadcast_local_source_allocate(uint32_t broadcast_id)
 {
 	for (size_t i = 0; i < ARRAY_SIZE(local_sources); i++) {
-		if (local_sources[i].broadcast_id == broadcast_id) {
-			LOG_ERR("Local source already allocated for broadcast id %d", broadcast_id);
+		if (local_sources[i].allocated && local_sources[i].broadcast_id == broadcast_id) {
+			LOG_ERR("Local source already allocated for broadcast id 0x%06X",
+				broadcast_id);
 
 			return NULL;
 		}
@@ -95,7 +97,7 @@ btp_bap_broadcast_local_source_allocate(uint32_t broadcast_id)
 	return NULL;
 }
 
-static int btp_bap_broadcast_local_source_free(struct btp_bap_broadcast_local_source *source)
+int btp_bap_broadcast_local_source_free(struct btp_bap_broadcast_local_source *source)
 {
 	if (source == NULL) {
 		return -EINVAL;
@@ -110,7 +112,7 @@ struct btp_bap_broadcast_local_source *
 btp_bap_broadcast_local_source_from_src_id_get(uint32_t source_id)
 {
 	for (size_t i = 0; i < ARRAY_SIZE(local_sources); i++) {
-		if (local_sources[i].source_id == source_id) {
+		if (local_sources[i].allocated && local_sources[i].source_id == source_id) {
 			return &local_sources[i];
 		}
 	}
@@ -124,7 +126,7 @@ static struct btp_bap_broadcast_local_source *
 btp_bap_broadcast_local_source_from_brcst_id_get(uint32_t broadcast_id)
 {
 	for (size_t i = 0; i < ARRAY_SIZE(local_sources); i++) {
-		if (local_sources[i].broadcast_id == broadcast_id) {
+		if (local_sources[i].allocated && local_sources[i].broadcast_id == broadcast_id) {
 			return &local_sources[i];
 		}
 	}

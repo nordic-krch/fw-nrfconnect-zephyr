@@ -249,7 +249,17 @@ class MissingProgram(FileNotFoundError):
         super().__init__(errno.ENOENT, os.strerror(errno.ENOENT), program)
 
 
-_RUNNERCAPS_COMMANDS = {'flash', 'debug', 'debugserver', 'attach', 'simulate', 'robot', 'rtt'}
+_RUNNERCAPS_COMMANDS = {
+    "flash",
+    "debug",
+    "debugserver",
+    "attach",
+    "simulate",
+    "robot",
+    "rtt",
+    "reset",
+}
+
 
 @dataclass
 class RunnerCaps:
@@ -288,6 +298,19 @@ class RunnerCaps:
     - reset: whether the runner supports a --reset option, which
       resets the device after a flash operation is complete.
 
+    - reset_types: whether the runner supports a --reset-type=x option,
+      which specifies a runner specific value for selecting a specific type
+      of reset to use when resetting the device.
+
+    - reset_types_supported: a list of values allowed to be passed with the
+      --reset-type option. If the list of supported reset types is
+      dynamic/device specific, this should be omitted, allowing any value to
+      be set and passed directly to the underlying tool. In addition to these,
+      each runner implementation must always be ready to accept `None` in a
+      runner-specific fashion. For user-friendliness, it is recommended to
+      place first in the list the value which has the behavior identical or
+      most similar to `None`.
+
     - extload: whether the runner supports a --extload option, which
       must be given one time and is passed on to the underlying tool
       that the runner wraps.
@@ -316,6 +339,8 @@ class RunnerCaps:
     flash_addr: bool = False
     erase: bool = False
     reset: bool = False
+    reset_types: bool = False
+    reset_types_supported: list[str] | None = None
     extload: bool = False
     tool_opt: bool = False
     file: bool = False
@@ -583,7 +608,8 @@ class ZephyrBinaryRunner(abc.ABC):
                                 help="path to binary file")
             parser.add_argument('-t', '--file-type',
                                 dest='file_type',
-                                help="type of binary file")
+                                help="type of binary file. If --file is not given, "
+                                     "selects the build artifact (hex, bin, elf)")
         else:
             parser.add_argument('-f', '--file', help=argparse.SUPPRESS)
             parser.add_argument('-t', '--file-type', help=argparse.SUPPRESS)
@@ -628,6 +654,11 @@ class ZephyrBinaryRunner(abc.ABC):
                             help=("reset device after flashing, or don't. "
                                   "Default action depends on each specific runner."
                                   if caps.reset else argparse.SUPPRESS))
+
+        parser.add_argument('--reset-type', dest="reset_type", choices=caps.reset_types_supported,
+                            help=("reset type to use for resetting the device. "
+                                    "Default type depends on each specific runner and target."
+                                    if caps.reset_types else argparse.SUPPRESS))
 
         parser.add_argument('--extload', dest='extload',
                             help=(cls.extload_help() if caps.extload
@@ -700,8 +731,6 @@ class ZephyrBinaryRunner(abc.ABC):
             _missing_cap(cls, '--tool-opt')
         if args.file and not caps.file:
             _missing_cap(cls, '--file')
-        if args.file_type and not args.file:
-            raise ValueError("--file-type requires --file")
         if args.file_type and not caps.file:
             _missing_cap(cls, '--file-type')
         if args.rtt_address and not caps.rtt:
@@ -969,14 +998,21 @@ class ZephyrBinaryRunner(abc.ABC):
         # RuntimeError avoids a stack trace saved in run_common.
         raise RuntimeError(err)
 
-    def run_telnet_client(self, host: str, port: int, active_sock=None) -> None:
+    def run_telnet_client(
+        self, host: str, port: int, active_sock=None,
+        send_on_connect: str | None = None,
+    ) -> None:
         '''
         Run a telnet client for user interaction.
+
+        :param send_on_connect: Send the given string right after connecting to
+                                the given socket. If provided, it will result in
+                                avoiding using `nc` as the client.
         '''
         # If the caller passed in an active socket, use that
         if active_sock is not None:
             sock = active_sock
-        elif shutil.which('nc') is not None:
+        elif send_on_connect is None and shutil.which('nc') is not None:
             # If a `nc` command is available, run it, as it will provide the
             # best support for CONFIG_SHELL_VT100_COMMANDS etc.
             client_cmd = ['nc', host, str(port)]
@@ -987,6 +1023,10 @@ class ZephyrBinaryRunner(abc.ABC):
             # Start a new socket connection
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((host, port))
+
+        if send_on_connect is not None:
+            # Send the given string before entering the interactive mode
+            sock.sendall(send_on_connect.encode('ascii'))
 
         # Otherwise, use a pure python implementation. This will work well for logging,
         # but input is line based only.

@@ -23,6 +23,12 @@ tests:
     platform_allow: qemu_x86
     extra_configs:
       - CONFIG_NET_NAMESPACE_COMPAT_MODE=y
+  net.build.vpn.wireguard:
+    platform_allow: qemu_x86
+    extra_configs:
+      - CONFIG_WIREGUARD=y
+      - CONFIG_NET_NAMESPACE_COMPAT_MODE=n
+      - CONFIG_POSIX_API=n
   # Compile test CANBUS
   net.build.no_compat_namespacing_canbus:
     platform_allow: qemu_x86
@@ -103,7 +109,6 @@ tests:
       - CONFIG_OPENTHREAD_SRP_ADV_PROXY=y
       - CONFIG_OPENTHREAD_DNSSD_DISCOVERY_PROXY=y
       - CONFIG_OPENTHREAD_PING_SENDER=y
-      - CONFIG_OPENTHREAD_REFERENCE_DEVICE=y
       - CONFIG_OPENTHREAD_LINK_METRICS_INITIATOR=y
       - CONFIG_OPENTHREAD_DUA=y
       - CONFIG_OPENTHREAD_MLR=y

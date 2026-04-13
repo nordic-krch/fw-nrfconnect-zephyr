@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <zephyr/autoconf.h>
 #include <zephyr/bluetooth/addr.h>
 #include <zephyr/bluetooth/gap.h>
 #include <zephyr/bluetooth/hci_types.h>
@@ -42,7 +43,6 @@ static void test_bap_broadcast_sink(void)
 	bsim_btp_core_register(BTP_SERVICE_ID_PACS);
 
 	bsim_btp_bap_broadcast_sink_setup();
-	bsim_btp_bap_broadcast_scan_start();
 
 	bsim_btp_bap_broadcast_scan_start();
 	bsim_btp_wait_for_bap_baa_found(&remote_addr, &broadcast_id, &adv_sid);

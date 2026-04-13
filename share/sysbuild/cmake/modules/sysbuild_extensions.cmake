@@ -146,9 +146,9 @@ function(sysbuild_cache)
     endif()
   endforeach()
   if(DEFINED BOARD_REVISION)
-    list(APPEND sysbuild_cache_strings "BOARD:STRING=${BOARD}@${BOARD_REVISION}${BOARD_QUALIFIERS}\n")
+    list(APPEND sysbuild_cache_strings "BOARD:STRING=${BOARD}@${BOARD_REVISION}/${BOARD_QUALIFIERS}\n")
   else()
-    list(APPEND sysbuild_cache_strings "BOARD:STRING=${BOARD}${BOARD_QUALIFIERS}\n")
+    list(APPEND sysbuild_cache_strings "BOARD:STRING=${BOARD}/${BOARD_QUALIFIERS}\n")
   endif()
   list(APPEND sysbuild_cache_strings "SYSBUILD_NAME:STRING=${SB_CACHE_APPLICATION}\n")
 
@@ -343,24 +343,6 @@ function(ExternalZephyrProject_Add)
     endif()
   endforeach()
 
-  foreach(kconfig_target
-      menuconfig
-      hardenconfig
-      guiconfig
-      $CACHE{EXTRA_KCONFIG_TARGETS}
-      )
-
-    if(NOT ZBUILD_APP_TYPE STREQUAL "MAIN")
-      set(image_prefix "${ZBUILD_APPLICATION}_")
-    endif()
-
-    add_custom_target(${image_prefix}${kconfig_target}
-      ${CMAKE_MAKE_PROGRAM} ${kconfig_target}
-      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/${ZBUILD_APPLICATION}
-      USES_TERMINAL
-      )
-  endforeach()
-
   set(list_separator ",")
   set(image_extra_kconfig_targets "-DEXTRA_KCONFIG_TARGETS=$CACHE{EXTRA_KCONFIG_TARGETS}")
   string(REPLACE ";" "${list_separator}" image_extra_kconfig_targets "${image_extra_kconfig_targets}")
@@ -507,8 +489,8 @@ function(ExternalZephyrVariantProject_Add)
     )
   endif()
 
-  get_target_property(ZBUILD_BOARD ${DEFAULT_IMAGE} BOARD)
-  get_target_property(ZBUILD_SOURCE_DIR ${DEFAULT_IMAGE} APP_SOURCE_DIR)
+  get_target_property(ZBUILD_BOARD ${ZBUILD_SOURCE_APP} BOARD)
+  get_target_property(ZBUILD_SOURCE_DIR ${ZBUILD_SOURCE_APP} APP_SOURCE_DIR)
   get_property(var_type CACHE ${ZBUILD_SOURCE_APP}_${shared_var} PROPERTY TYPE)
 
   set_property(
@@ -743,8 +725,14 @@ function(ExternalZephyrProject_Cmake)
     )
   endif()
   load_cache(IMAGE ${ZCMAKE_APPLICATION} BINARY_DIR ${BINARY_DIR})
-  import_kconfig(CONFIG_ ${BINARY_DIR}/zephyr/.config TARGET ${ZCMAKE_APPLICATION})
-  zephyr_dt_import(EDT_PICKLE_FILE ${BINARY_DIR}/zephyr/edt.pickle TARGET ${ZCMAKE_APPLICATION})
+
+  if(EXISTS ${BINARY_DIR}/zephyr/.config)
+    import_kconfig(CONFIG_ ${BINARY_DIR}/zephyr/.config TARGET ${ZCMAKE_APPLICATION})
+  endif()
+
+  if(EXISTS ${BINARY_DIR}/zephyr/edt.pickle)
+    zephyr_dt_import(EDT_PICKLE_FILE ${BINARY_DIR}/zephyr/edt.pickle TARGET ${ZCMAKE_APPLICATION})
+  endif()
 
   # This custom target informs CMake how the BYPRODUCTS are generated if a target
   # depends directly on the BYPRODUCT instead of depending on the image target.
@@ -754,6 +742,25 @@ function(ExternalZephyrProject_Cmake)
                     BYPRODUCTS ${${ZCMAKE_APPLICATION}_byproducts}
                     DEPENDS ${ZCMAKE_APPLICATION}
   )
+
+  get_target_property(${ZCMAKE_APPLICATION}_shared_targets
+    ${ZCMAKE_APPLICATION}_cache
+    ZEPHYR_SHARED_TARGETS
+  )
+
+  get_target_property(${ZCMAKE_APPLICATION}_MAIN_APP ${ZCMAKE_APPLICATION} MAIN_APP)
+  foreach(shared_target ${${ZCMAKE_APPLICATION}_shared_targets})
+    if(NOT ${ZCMAKE_APPLICATION}_MAIN_APP)
+      set(image_prefix "${ZCMAKE_APPLICATION}_")
+    endif()
+
+    add_custom_target(${image_prefix}${shared_target}
+      ${CMAKE_MAKE_PROGRAM} ${shared_target}
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/${ZCMAKE_APPLICATION}
+      USES_TERMINAL
+    )
+  endforeach()
+
 endfunction()
 
 # Usage:
