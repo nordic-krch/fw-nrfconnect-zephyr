@@ -72,8 +72,7 @@
 			device_type = "cpu";
 			compatible = "sifive,e24", "riscv";
 			reg = <0>;
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "f", "c", "zicsr", "zifencei";
+			riscv,isa = "rv32imafcb";
 			hardware-exec-breakpoint-count = <4>;
 			status = "okay";
 
