@@ -463,7 +463,8 @@
 #define MBEDTLS_ENTROPY_MAX_SOURCES        1 /**< Maximum number of sources supported */
 #endif
 
-#if defined(CONFIG_MBEDTLS_SSL_SERVER_NAME_INDICATION)
+#if defined(CONFIG_MBEDTLS_SERVER_NAME_INDICATION) && \
+    defined(MBEDTLS_X509_CRT_PARSE_C)
 #define MBEDTLS_SSL_SERVER_NAME_INDICATION
 #endif
 
