@@ -15,6 +15,12 @@
 #include <errno.h>
 #include <zephyr/crypto/crypto.h>
 
+#if !defined(CONFIG_MBEDTLS_CFG_FILE)
+#include "mbedtls/config.h"
+#else
+#include CONFIG_MBEDTLS_CFG_FILE
+#endif /* CONFIG_MBEDTLS_CFG_FILE */
+
 #include <psa/crypto.h>
 
 #define MBEDTLS_SUPPORT (CAP_RAW_KEY | CAP_SEPARATE_IO_BUFS | CAP_SYNC_OPS | \
@@ -22,7 +28,7 @@
 
 #define LOG_LEVEL CONFIG_CRYPTO_LOG_LEVEL
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(mbedtls_shim);
+LOG_MODULE_REGISTER(mbedtls);
 
 struct mbedtls_shim_session {
 	union {
@@ -39,6 +45,12 @@ struct mbedtls_shim_session {
 struct mbedtls_shim_session mbedtls_sessions[CRYPTO_MAX_SESSION];
 
 static K_MUTEX_DEFINE(mbedtls_sessions_lock);
+
+#if defined(MBEDTLS_MEMORY_BUFFER_ALLOC_C)
+#include "mbedtls/memory_buffer_alloc.h"
+#else
+#error "You need to define MBEDTLS_MEMORY_BUFFER_ALLOC_C"
+#endif /* MBEDTLS_MEMORY_BUFFER_ALLOC_C */
 
 static struct mbedtls_shim_session *mbedtls_get_unused_session(void)
 {
