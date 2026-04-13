@@ -181,6 +181,9 @@ static void wifi_setup(void)
 
 void soc_early_init_hook(void)
 {
+#if DT_HAS_COMPAT_STATUS_OKAY(nordic_nrf_pwr_antswc)
+	*(volatile uint32_t *)PWR_ANTSWC_REG |= PWR_ANTSWC_ENABLE;
+#endif
 	/* Update the SystemCoreClock global variable with current core clock
 	 * retrieved from hardware state.
 	 */
@@ -188,10 +191,6 @@ void soc_early_init_hook(void)
 	/* Currently not supported for non-secure */
 	SystemCoreClockUpdate();
 	wifi_setup();
-
-#if DT_HAS_COMPAT_STATUS_OKAY(nordic_nrf_pwr_antswc)
-	*(volatile uint32_t *)PWR_ANTSWC_REG |= PWR_ANTSWC_ENABLE;
-#endif
 
 	/* Configure LFXO capacitive load if internal load capacitors are used */
 #if DT_ENUM_HAS_VALUE(LFXO_NODE, load_capacitors, internal)
