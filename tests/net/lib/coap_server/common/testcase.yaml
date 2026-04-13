@@ -6,9 +6,14 @@ common:
     - net
     - coap
     - server
-    - tls
   integration_platforms:
     - native_sim
 
 tests:
-  net.coap.server.secure: {}
+  net.coap.server.common: {}
+  net.coap.server.secure:
+    tags:
+      - tls
+    extra_configs:
+      - CONFIG_NET_SOCKETS_SOCKOPT_TLS=y
+      - CONFIG_NET_SOCKETS_ENABLE_DTLS=y
