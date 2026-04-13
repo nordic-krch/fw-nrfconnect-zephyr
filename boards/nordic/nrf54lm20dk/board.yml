@@ -9,12 +9,6 @@ board:
       cpucluster: cpuapp
     - name: xip
       cpucluster: cpuflpr
-  - name: nrf54lm20b
-    variants:
-    - name: ns
-      cpucluster: cpuapp
-    - name: xip
-      cpucluster: cpuflpr
 runners:
   run_once:
     '--recover':
