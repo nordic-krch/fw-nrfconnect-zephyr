@@ -767,8 +767,8 @@ static void uarte_periph_enable(const struct device *dev)
 				nrf_timer_task_trigger(config->timer_regs, NRF_TIMER_TASK_COUNT);
 			}
 		}
-#endif
 		return;
+#endif
 	}
 #endif
 
