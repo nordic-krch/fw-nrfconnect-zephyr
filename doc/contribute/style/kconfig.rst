@@ -88,8 +88,6 @@ The specific formats by subtree:
 * **Tests (/tests)**: Use ``TEST_`` for symbols, this is to prevent conflicts with external
   modules.
 
-* **Boards (/boards)**: Use ``BOARD_`` for symbols.
-
 Examples
 ========
 
