@@ -2600,6 +2600,7 @@ static int udc_numaker_ep_enqueue(const struct device *dev, struct udc_ep_config
 
 static int udc_numaker_ep_dequeue(const struct device *dev, struct udc_ep_config *const ep_cfg)
 {
+	struct net_buf *buf;
 	struct numaker_usbd_ep *ep_cur;
 
 	/* Bind EP H/W context to EP address */
@@ -2611,7 +2612,10 @@ static int udc_numaker_ep_dequeue(const struct device *dev, struct udc_ep_config
 
 	numaker_usbd_ep_abort(ep_cur, false);
 
-	udc_ep_cancel_queued(dev, ep_cfg);
+	buf = udc_buf_get_all(ep_cfg);
+	if (buf) {
+		udc_submit_ep_event(dev, buf, -ECONNABORTED);
+	}
 
 	return 0;
 }
