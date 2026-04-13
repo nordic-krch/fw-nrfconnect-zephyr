@@ -1525,10 +1525,8 @@ static void modem_cellular_carrier_on_event_handler(struct modem_cellular_data *
 		modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_DORMANT);
 		break;
 	case MODEM_CELLULAR_EVENT_PPP_DEAD:
-		if (net_if_is_admin_up(modem_ppp_get_iface(data->ppp))) {
-			modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_DORMANT);
-			modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_RUN_DIAL_SCRIPT);
-		}
+		modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_DORMANT);
+		modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_RUN_DIAL_SCRIPT);
 		break;
 
 	case MODEM_CELLULAR_EVENT_SUSPEND:
