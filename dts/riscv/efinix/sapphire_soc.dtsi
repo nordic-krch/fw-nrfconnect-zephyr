@@ -31,8 +31,7 @@
 			compatible = "efinix,vexriscv-sapphire", "riscv";
 			device_type = "cpu";
 			reg = <0>;
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "zicsr", "zifencei";
+			riscv,isa = "rv32ima_zicsr_zifencei";
 			status = "okay";
 
 			hlic: interrupt-controller {
