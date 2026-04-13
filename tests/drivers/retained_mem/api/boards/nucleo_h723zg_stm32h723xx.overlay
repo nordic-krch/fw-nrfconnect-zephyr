@@ -15,7 +15,5 @@
 	retainedmem0: retainedmem {
 		compatible = "zephyr,retained-ram";
 		status = "okay";
-		#address-cells = <1>;
-		#size-cells = <1>;
 	};
 };
