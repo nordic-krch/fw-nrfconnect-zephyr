@@ -21,9 +21,7 @@
 			device_type = "cpu";
 			reg = <0>;
 			status = "okay";
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei",
-					       "xandes";
+			riscv,isa = "rv32gc_xandes";
 			mmu-type = "riscv,sv32";
 			clock-frequency = <60000000>;
 			i-cache-line-size = <32>;
@@ -42,9 +40,7 @@
 			device_type = "cpu";
 			reg = <1>;
 			status = "okay";
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei",
-					       "xandes";
+			riscv,isa = "rv32gc_xandes";
 			mmu-type = "riscv,sv32";
 			clock-frequency = <60000000>;
 			i-cache-line-size = <32>;
@@ -63,9 +59,7 @@
 			device_type = "cpu";
 			reg = <2>;
 			status = "okay";
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei",
-					       "xandes";
+			riscv,isa = "rv32gc_xandes";
 			mmu-type = "riscv,sv32";
 			clock-frequency = <60000000>;
 			i-cache-line-size = <32>;
@@ -84,9 +78,7 @@
 			device_type = "cpu";
 			reg = <3>;
 			status = "okay";
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei",
-					       "xandes";
+			riscv,isa = "rv32gc_xandes";
 			mmu-type = "riscv,sv32";
 			clock-frequency = <60000000>;
 			i-cache-line-size = <32>;
@@ -105,9 +97,7 @@
 			device_type = "cpu";
 			reg = <4>;
 			status = "okay";
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei",
-					       "xandes";
+			riscv,isa = "rv32gc_xandes";
 			mmu-type = "riscv,sv32";
 			clock-frequency = <60000000>;
 			i-cache-line-size = <32>;
@@ -126,9 +116,7 @@
 			device_type = "cpu";
 			reg = <5>;
 			status = "okay";
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei",
-					       "xandes";
+			riscv,isa = "rv32gc_xandes";
 			mmu-type = "riscv,sv32";
 			clock-frequency = <60000000>;
 			i-cache-line-size = <32>;
@@ -147,9 +135,7 @@
 			device_type = "cpu";
 			reg = <6>;
 			status = "okay";
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei",
-					       "xandes";
+			riscv,isa = "rv32gc_xandes";
 			mmu-type = "riscv,sv32";
 			clock-frequency = <60000000>;
 			i-cache-line-size = <32>;
@@ -168,9 +154,7 @@
 			device_type = "cpu";
 			reg = <7>;
 			status = "okay";
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei",
-					       "xandes";
+			riscv,isa = "rv32gc_xandes";
 			mmu-type = "riscv,sv32";
 			clock-frequency = <60000000>;
 			i-cache-line-size = <32>;
