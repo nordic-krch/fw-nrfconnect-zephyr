@@ -165,5 +165,4 @@ void arch_busy_wait(uint32_t time_us)
 	nrfx_coredep_delay_us(time_us);
 }
 
-/* Init must precede sys_clock_driver_init */
-SYS_INIT(nordicsemi_nrf54l_init, EARLY, 0);
+SYS_INIT(nordicsemi_nrf54l_init, PRE_KERNEL_1, 0);
