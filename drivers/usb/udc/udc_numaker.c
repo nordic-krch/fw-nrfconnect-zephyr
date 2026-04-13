@@ -158,7 +158,6 @@ struct udc_numaker_config {
 	const struct pinctrl_dev_config *pincfg;
 	uint32_t dmabuf_size;
 	bool disallow_iso_inout_same;
-	bool allow_disable_usb_on_unplug;
 	int speed_idx;
 	void (*make_thread)(const struct device *dev);
 	bool is_hsusbd;
@@ -663,16 +662,12 @@ static void numaker_usbd_vbus_unplug_th(const struct device *dev)
 		HSUSBD_T *base = config->base;
 
 		/* Disable USB/PHY */
-		if (config->allow_disable_usb_on_unplug) {
-			base->PHYCTL &= ~HSUSBD_PHYCTL_PHYEN_Msk;
-		}
+		base->PHYCTL &= ~HSUSBD_PHYCTL_PHYEN_Msk;
 	} else {
 		USBD_T *base = config->base;
 
 		/* Disable USB */
-		if (config->allow_disable_usb_on_unplug) {
-			base->ATTR &= ~USBD_USB_EN;
-		}
+		base->ATTR &= ~USBD_USB_EN;
 	}
 
 	/* UDC stack would handle bottom-half processing */
@@ -3118,8 +3113,6 @@ static const struct udc_api udc_numaker_api = {
 		.dmabuf_size = DT_INST_PROP(inst, dma_buffer_size),                                \
 		.disallow_iso_inout_same = DT_INST_PROP_OR(inst, disallow_iso_in_out_same_number,  \
 							   0),                                     \
-		.allow_disable_usb_on_unplug = DT_INST_PROP_OR(inst, allow_disable_usb_on_unplug,  \
-							       0),                                 \
 		.speed_idx = DT_ENUM_IDX_OR(DT_DRV_INST(inst), maximum_speed,                      \
 					    UDC_NUMAKER_SPEED_IDX_DEFAULT),                        \
 		.is_hsusbd = IS_ENABLED(UDC_NUMAKER_DEVICE_HSUSBD),                                \
