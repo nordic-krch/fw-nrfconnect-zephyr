@@ -109,8 +109,7 @@
 };
 
 &cpu0 {
-	riscv,isa-base = "rv32i";
-	riscv,isa-extensions = "i", "m", "zicsr", "zifencei";
+	riscv,isa = "rv32im_zicsr_zifencei";
 };
 
 &bootrom {
