@@ -1134,7 +1134,14 @@ static void data_handler(const struct device *dev, const tdm_buffers_t *released
 
 static void clock_manager_init(const struct device *dev)
 {
-#if DT_NODE_HAS_STATUS_OKAY(NODE_ACLK) && CONFIG_CLOCK_CONTROL_NRFS_AUDIOPLL
+#if CONFIG_CLOCK_CONTROL_NRF && NRF_CLOCK_HAS_HFCLKAUDIO
+	clock_control_subsys_t subsys;
+	struct tdm_drv_data *drv_data = dev->data;
+
+	subsys = CLOCK_CONTROL_NRF_SUBSYS_HFAUDIO;
+	drv_data->clk_mgr = z_nrf_clock_control_get_onoff(subsys);
+	__ASSERT_NO_MSG(drv_data->clk_mgr != NULL);
+#elif DT_NODE_HAS_STATUS_OKAY(NODE_ACLK) && CONFIG_CLOCK_CONTROL_NRFS_AUDIOPLL
 	struct tdm_drv_data *drv_data = dev->data;
 
 	drv_data->audiopll = DEVICE_DT_GET(NODE_ACLK);
@@ -1144,17 +1151,9 @@ static void clock_manager_init(const struct device *dev)
 
 	drv_data->audiopll = DEVICE_DT_GET(NODE_AUDIO_AUXPLL);
 	drv_data->aclk_spec.frequency = ACLK_FREQUENCY;
-#elif CONFIG_CLOCK_CONTROL_NRF && (NRF_CLOCK_HAS_HFCLKAUDIO || NRF_CLOCK_HAS_HFCLK24M)
-	clock_control_subsys_t subsys;
-	struct tdm_drv_data *drv_data = dev->data;
-
-	IF_ENABLED(NRF_CLOCK_HAS_HFCLKAUDIO, (subsys = CLOCK_CONTROL_NRF_SUBSYS_HFAUDIO;))
-	IF_ENABLED(NRF_CLOCK_HAS_HFCLK24M, (subsys = CLOCK_CONTROL_NRF_SUBSYS_HF24M;))
-	drv_data->clk_mgr = z_nrf_clock_control_get_onoff(subsys);
-	__ASSERT_NO_MSG(drv_data->clk_mgr != NULL);
 #else
 	(void)dev;
-#endif /* CONFIG_CLOCK_CONTROL_NRF && (NRF_CLOCK_HAS_HFCLKAUDIO || NRF_CLOCK_HAS_HFCLK24M) */
+#endif
 }
 
 static int data_init(const struct device *dev)
