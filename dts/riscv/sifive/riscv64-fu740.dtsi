@@ -35,8 +35,7 @@
 			compatible = "sifive,s7", "riscv";
 			device_type = "cpu";
 			reg = <0>;
-			riscv,isa-base = "rv64i";
-			riscv,isa-extensions = "i", "m", "a", "c", "zicsr", "zifencei";
+			riscv,isa = "rv64imac_zicsr_zifencei";
 			status = "okay";
 
 			hlic0: interrupt-controller {
@@ -52,8 +51,7 @@
 			device_type = "cpu";
 			mmu-type = "riscv,sv39";
 			reg = <0x1>;
-			riscv,isa-base = "rv64i";
-			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei";
+			riscv,isa = "rv64gc";
 
 			hlic1: interrupt-controller {
 				compatible = "riscv,cpu-intc";
@@ -68,8 +66,7 @@
 			device_type = "cpu";
 			mmu-type = "riscv,sv39";
 			reg = <0x2>;
-			riscv,isa-base = "rv64i";
-			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei";
+			riscv,isa = "rv64gc";
 
 			hlic2: interrupt-controller {
 				compatible = "riscv,cpu-intc";
@@ -84,8 +81,7 @@
 			device_type = "cpu";
 			mmu-type = "riscv,sv39";
 			reg = <0x3>;
-			riscv,isa-base = "rv64i";
-			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei";
+			riscv,isa = "rv64gc";
 
 			hlic3: interrupt-controller {
 				compatible = "riscv,cpu-intc";
@@ -100,8 +96,7 @@
 			device_type = "cpu";
 			mmu-type = "riscv,sv39";
 			reg = <0x4>;
-			riscv,isa-base = "rv64i";
-			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei";
+			riscv,isa = "rv64gc";
 
 			hlic4: interrupt-controller {
 				compatible = "riscv,cpu-intc";
