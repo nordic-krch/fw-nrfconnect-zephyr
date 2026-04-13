@@ -34,7 +34,7 @@
 		};
 
 		cpuflpr: cpu@1 {
-			compatible = "nordic,vpr", "riscv";
+			compatible = "nordic,vpr";
 			reg = <1>;
 			device_type = "cpu";
 			clock-frequency = <DT_FREQ_M(256)>;
