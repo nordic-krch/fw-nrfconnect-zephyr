@@ -366,8 +366,10 @@ const char *ppp_option2str(enum ppp_protocol_type protocol,
 
 void ppp_fsm_name_set(struct ppp_fsm *fsm, const char *name)
 {
-	/* Always set name: NET_ERR/NET_WRN in ipv6cp/ipcp/lcp use fsm->name
-	 * regardless of CONFIG_NET_L2_PPP_LOG_LEVEL.
-	 */
-	fsm->name = (name != NULL) ? name : "";
+#if CONFIG_NET_L2_PPP_LOG_LEVEL >= LOG_LEVEL_DBG
+	fsm->name = name;
+#else
+	ARG_UNUSED(fsm);
+	ARG_UNUSED(name);
+#endif
 }
