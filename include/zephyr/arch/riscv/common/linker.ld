@@ -273,6 +273,32 @@ SECTIONS
 		 __data_region_start = .;
 		 __data_start = .;
 
+		/*
+		 * RISC-V gp-relative small data model:
+		 *
+		 * With CONFIG_RISCV_GP, toolchains may emit gp-relative relocations
+		 * for objects in .sdata/.sbss, which must stay within a limited
+		 * offset range from gp. Zephyr may inject many RAM sections between
+		 * .data and .bss (iterable sections, device deps, logging, networking,
+		 * etc.). Any growth can push .sbss out of gp-relative range and cause
+		 * link-time relocation failures.
+		 *
+		 * Keep .sdata and .sbss contiguous by forcing .sbss immediately after
+		 * .sdata within the .data output section.
+		 */
+#if defined(CONFIG_RISCV_GP)
+		/* Ensure .sdata is emitted before any other injected RAM sections. */
+		*(.sdata)
+		*(".sdata.*")
+
+		/*
+		 * Place .sbss right after .sdata so intervening sections cannot
+		 * separate them and push .sbss out of gp-relative range.
+		 */
+		*(.sbss)
+		*(".sbss.*")
+#endif /* CONFIG_RISCV_GP */
+
 		 *(.data)
 		 *(".data.*")
 
