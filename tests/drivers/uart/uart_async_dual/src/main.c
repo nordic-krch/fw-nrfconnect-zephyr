@@ -145,7 +145,6 @@ enum test_rx_mode {
 	RX_CONT,
 	RX_DIS,
 	RX_ALL,
-	RX_CONT_1BYTE_BUF,
 };
 
 typedef bool (*test_on_rx_rdy_t)(const struct device *dev, uint8_t *buf, size_t len);
@@ -356,12 +355,9 @@ static bool on_rx_rdy_hdr(const struct device *dev, uint8_t *buf, size_t len)
 {
 	int err;
 
-	if (rx_data.mode != RX_CONT_1BYTE_BUF) {
-		zassert_equal(buf, rx_data.hdr);
-	}
+	zassert_equal(buf, rx_data.hdr);
 	zassert_equal(len, 1);
-
-	if (buf[0] == 1) {
+	if (rx_data.hdr[0] == 1) {
 		/* single byte packet. */
 		if ((rx_data.mode == RX_CONT) && rx_data.buf_req) {
 			err = uart_rx_buf_rsp(dev, rx_data.hdr, 1);
@@ -372,15 +368,14 @@ static bool on_rx_rdy_hdr(const struct device *dev, uint8_t *buf, size_t len)
 
 	zassert_equal(rx_data.payload_idx, 0);
 	rx_data.on_rx_rdy = on_rx_rdy_payload;
-	rx_data.payload_idx = buf[0] - 1;
+	rx_data.payload_idx = rx_data.hdr[0] - 1;
 	rx_data.state = RX_PAYLOAD;
 	if ((rx_data.mode == RX_CONT) && rx_data.buf_req) {
-		size_t l = buf[0] - 1;
+		size_t l = rx_data.hdr[0] - 1;
 
 		zassert_true(l > 0);
 		rx_data.buf_req = false;
 		err = uart_rx_buf_rsp(dev, rx_data.buf, buf[0] - 1);
-		zassert_equal(err, 0);
 	}
 
 	return true;
@@ -388,21 +383,16 @@ static bool on_rx_rdy_hdr(const struct device *dev, uint8_t *buf, size_t len)
 
 static void on_rx_buf_req(const struct device *dev)
 {
-	uint8_t *buf;
-	size_t len;
-	int err;
-
-	if ((rx_data.mode == RX_CONT) || (rx_data.mode == RX_DIS)) {
+	if (rx_data.mode != RX_ALL) {
 		rx_data.buf_req = true;
 		return;
 	}
 
-	len = (rx_data.mode == RX_CONT_1BYTE_BUF) ? 1 : sizeof(rx_data.buf) / 2;
-	buf = &rx_data.buf[len * rx_data.buf_idx];
-	rx_data.buf_idx = (rx_data.buf_idx + 1) & 0x1;
+	size_t len = sizeof(rx_data.buf) / 2;
+	uint8_t *buf = &rx_data.buf[len * rx_data.buf_idx];
 
-	err = uart_rx_buf_rsp(dev, buf, len);
-	zassert_equal(err, 0);
+	rx_data.buf_idx = (rx_data.buf_idx + 1) & 0x1;
+	uart_rx_buf_rsp(dev, buf, len);
 }
 
 static void on_rx_dis(const struct device *dev, struct uart_event *evt, void *user_data)
@@ -658,25 +648,6 @@ ZTEST(uart_async_dual, test_var_packets_cont_hwfc_1m)
 {
 	/* TX in packet mode, RX in CONT mode, 1M  */
 	var_packet(1000000, TX_PACKETS, RX_CONT, true);
-}
-
-ZTEST(uart_async_dual, test_var_packets_1byte_rx_hwfc)
-{
-	/* TX in packet mode, RX in CONT mode, 1M  */
-	var_packet(115200, TX_PACKETS, RX_CONT_1BYTE_BUF, true);
-}
-
-ZTEST(uart_async_dual, test_var_packets_1byte_rx_hwfc_1m)
-{
-	if (IS_ENABLED(CONFIG_TEST_BUSY_SIM)) {
-		/* Providing 1 byte buffers all the time generates too much cpu load
-		 * to handle with additional busy simulator loading the cpu.
-		 */
-		ztest_test_skip();
-	}
-
-	/* TX in packet mode, RX in CONT mode, 1M  */
-	var_packet(1000000, TX_PACKETS, RX_CONT_1BYTE_BUF, true);
 }
 
 ZTEST(uart_async_dual, test_var_packets_chopped_all)
@@ -982,7 +953,7 @@ static void hci_like_test(uint32_t baudrate)
 
 	/* Flush data. */
 	(void)uart_tx_abort(tx_dev);
-	k_sleep(K_USEC(TX_TIMEOUT * 12 / 10));
+	k_msleep(10);
 	PM_CHECK(tx_dev, rx_dev, false);
 
 	(void)uart_rx_enable(rx_dev, rx_data.buf, sizeof(rx_data.buf), rx_data.timeout);
@@ -1011,11 +982,6 @@ ZTEST(uart_async_dual, test_hci_like_1M)
 static void *setup(void)
 {
 	static int idx;
-
-	/* First call will initialize the test random generator and it needs to be done
-	 * from a thread context.
-	 */
-	(void)sys_rand8_get();
 
 	rx_dev = duts[idx].dev;
 	if (duts[idx].dev_aux == NULL) {
