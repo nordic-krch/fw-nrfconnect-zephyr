@@ -20,8 +20,7 @@
 			compatible = "litex,vexriscv-standard", "riscv";
 			device_type = "cpu";
 			reg = <0>;
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "c", "zicsr", "zifencei";
+			riscv,isa = "rv32imc";
 			status = "okay";
 
 			hlic: interrupt-controller {
