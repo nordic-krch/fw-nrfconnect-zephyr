@@ -24,8 +24,7 @@
 		cpu: cpu@0 {
 			clock-frequency = <DT_FREQ_M(108)>;
 			compatible = "nuclei,bumblebee", "riscv";
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "c", "zicsr", "zifencei";
+			riscv,isa = "rv32imac_zicsr_zifencei";
 			reg = <0>;
 		};
 	};
