@@ -400,7 +400,6 @@
 			status = "disabled";
 			num-bidir-endpoints = <19>;
 			disallow-iso-in-out-same-number;
-			allow-disable-usb-on-unplug;
 		};
 
 		wwdt: watchdog@40096000 {
