@@ -399,7 +399,7 @@ class HardwareMap:
                     for h in hwm:
                         if h['product'] != 'BOOT-SERIAL' :
                             h['connected'] = False
-                            h.pop('serial', None)
+                            h['serial'] = None
                         else :
                             boot_ids.append(h['id'])
 
@@ -412,8 +412,7 @@ class HardwareMap:
                                 h['connected'] is False
                             ]):
                                 h['connected'] = True
-                                if _detected.serial:
-                                    h['serial'] = _detected.serial
+                                h['serial'] = _detected.serial
                                 _detected.match = True
                                 break
 
@@ -446,16 +445,16 @@ class HardwareMap:
                 platform  = _connected.platform
                 id = _connected.id
                 runner = _connected.runner
+                serial = _connected.serial
                 product = _connected.product
                 d = {
                     'platform': platform,
                     'id': id,
                     'runner': runner,
+                    'serial': serial,
                     'product': product,
                     'connected': _connected.connected
                 }
-                if _connected.serial:
-                    d['serial'] = _connected.serial
                 dl.append(d)
             with open(hwm_file, 'w') as yaml_file:
                 yaml.dump(dl, yaml_file, Dumper=Dumper, default_flow_style=False)
