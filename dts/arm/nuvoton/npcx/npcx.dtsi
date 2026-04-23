@@ -205,7 +205,7 @@
 			compatible = "nuvoton,npcx-gpio";
 			reg = <0x40095000 0x2000>;
 			gpio-controller;
-			index = <0xa>;
+			index = <0xA>;
 			#gpio-cells = <2>;
 		};
 
@@ -213,7 +213,7 @@
 			compatible = "nuvoton,npcx-gpio";
 			reg = <0x40097000 0x2000>;
 			gpio-controller;
-			index = <0xb>;
+			index = <0xB>;
 			#gpio-cells = <2>;
 		};
 
@@ -221,7 +221,7 @@
 			compatible = "nuvoton,npcx-gpio";
 			reg = <0x40099000 0x2000>;
 			gpio-controller;
-			index = <0xc>;
+			index = <0xC>;
 			#gpio-cells = <2>;
 		};
 
@@ -229,7 +229,7 @@
 			compatible = "nuvoton,npcx-gpio";
 			reg = <0x4009b000 0x2000>;
 			gpio-controller;
-			index = <0xd>;
+			index = <0xD>;
 			#gpio-cells = <2>;
 		};
 
@@ -237,7 +237,7 @@
 			compatible = "nuvoton,npcx-gpio";
 			reg = <0x4009d000 0x2000>;
 			gpio-controller;
-			index = <0xe>;
+			index = <0xE>;
 			#gpio-cells = <2>;
 		};
 
@@ -245,7 +245,7 @@
 			compatible = "nuvoton,npcx-gpio";
 			reg = <0x4009f000 0x2000>;
 			gpio-controller;
-			index = <0xf>;
+			index = <0xF>;
 			#gpio-cells = <2>;
 		};
 
@@ -328,7 +328,7 @@
 			interrupts = <10 4>;
 			clocks = <&pcc NPCX_CLOCK_BUS_APB1 NPCX_PWDWN_CTL4 4>;
 			vref-mv = <2816>;
-			speed-conf = <0x03 0x8b07 0x0100 0x0001>;
+			speed-conf = <0x03 0x8B07 0x0100 0x0001>;
 			status = "disabled";
 		};
 
