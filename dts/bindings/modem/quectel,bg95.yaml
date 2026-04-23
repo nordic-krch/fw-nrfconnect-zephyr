@@ -18,6 +18,3 @@ properties:
       automatically when supply voltage is applied—that is, the modem
       asserts PWRKEY internally and does not require an external PWRKEY
       pulse.
-
-  zephyr,mdm-reset-behavior:
-    default: ["toggle_on_recovery"]

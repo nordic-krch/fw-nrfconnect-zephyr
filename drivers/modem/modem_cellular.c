@@ -201,9 +201,6 @@ struct modem_cellular_config {
 	uint16_t startup_time_ms;
 	uint16_t shutdown_time_ms;
 	bool autostarts;
-	bool hold_reset_on_suspend;
-	bool reset_on_resume;
-	bool reset_on_recovery;
 	bool cmux_enable_runtime_power_save;
 	bool cmux_close_pipe_on_power_save;
 	bool use_default_pdp_context;
@@ -844,7 +841,7 @@ static int modem_cellular_on_idle_state_enter(struct modem_cellular_data *data)
 		gpio_pin_set_dt(&config->wake_gpio, 0);
 	}
 
-	if (modem_cellular_gpio_is_enabled(&config->reset_gpio) && config->hold_reset_on_suspend) {
+	if (modem_cellular_gpio_is_enabled(&config->reset_gpio)) {
 		gpio_pin_set_dt(&config->reset_gpio, 1);
 	}
 
@@ -870,8 +867,7 @@ static void modem_cellular_idle_event_handler(struct modem_cellular_data *data,
 			break;
 		}
 
-		if (modem_cellular_gpio_is_enabled(&config->reset_gpio) &&
-		    config->reset_on_resume) {
+		if (modem_cellular_gpio_is_enabled(&config->reset_gpio)) {
 			modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_RESET_PULSE);
 			break;
 		}
@@ -904,7 +900,7 @@ static int modem_cellular_on_idle_state_leave(struct modem_cellular_data *data)
 
 	k_sem_take(&data->suspended_sem, K_NO_WAIT);
 
-	if (modem_cellular_gpio_is_enabled(&config->reset_gpio) && config->hold_reset_on_suspend) {
+	if (modem_cellular_gpio_is_enabled(&config->reset_gpio)) {
 		gpio_pin_set_dt(&config->reset_gpio, 0);
 	}
 
@@ -1207,8 +1203,7 @@ static void modem_cellular_run_init_script_event_handler(struct modem_cellular_d
 		break;
 
 	case MODEM_CELLULAR_EVENT_SCRIPT_FAILED:
-		if (modem_cellular_gpio_is_enabled(&config->reset_gpio) &&
-		    config->reset_on_recovery) {
+		if (modem_cellular_gpio_is_enabled(&config->reset_gpio)) {
 			modem_cellular_enter_state(data, MODEM_CELLULAR_STATE_RESET_PULSE);
 			break;
 		}
@@ -2385,9 +2380,7 @@ static int modem_cellular_init(const struct device *dev)
 	}
 
 	if (modem_cellular_gpio_is_enabled(&config->reset_gpio)) {
-		gpio_flags_t flags =
-			(config->hold_reset_on_suspend) ? GPIO_OUTPUT_ACTIVE : GPIO_OUTPUT_INACTIVE;
-		gpio_pin_configure_dt(&config->reset_gpio, flags);
+		gpio_pin_configure_dt(&config->reset_gpio, GPIO_OUTPUT_ACTIVE);
 	}
 
 	if (modem_cellular_gpio_is_enabled(&config->ring_gpio)) {
@@ -3196,12 +3189,6 @@ MODEM_CHAT_SCRIPT_DEFINE(sqn_gm02s_periodic_chat_script,
 		.startup_time_ms = (startup_ms),                                                   \
 		.shutdown_time_ms = (shutdown_ms),                                                 \
 		.autostarts = DT_INST_PROP_OR(inst, autostarts, (start)),                          \
-		.hold_reset_on_suspend =                                                           \
-			DT_INST_ENUM_HAS_VALUE(inst, zephyr_mdm_reset_behavior, hold_on_suspend),  \
-		.reset_on_resume = DT_INST_ENUM_HAS_VALUE(inst, zephyr_mdm_reset_behavior,         \
-							    toggle_on_resume),                     \
-		.reset_on_recovery = DT_INST_ENUM_HAS_VALUE(inst, zephyr_mdm_reset_behavior,       \
-							    toggle_on_recovery),                   \
 		.cmux_enable_runtime_power_save =                                                  \
 			DT_INST_PROP_OR(inst, cmux_enable_runtime_power_save, 0),                  \
 		.cmux_close_pipe_on_power_save =                                                   \
