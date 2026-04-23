@@ -137,8 +137,6 @@ int main(void)
 
 #ifdef CONFIG_NRF_SYS_EVENT_IRQ_LATENCY
 	sys_event_irq_latency();
-
-	printf("All done\n");
 #endif
 	return 0;
 }
