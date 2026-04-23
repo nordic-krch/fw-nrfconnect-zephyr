@@ -34,7 +34,6 @@ void z_getopt_global_state_update_shim(struct sys_getopt_state *state)
 	optarg = state->optarg;
 }
 
-#if CONFIG_GETOPT_LONG
 int getopt_long(int argc, char *const argv[], const char *shortopts,
 		const struct option *longopts, int *longind)
 {
@@ -46,4 +45,3 @@ int getopt_long_only(int argc, char *const argv[], const char *shortopts,
 {
 	return sys_getopt_long_only(argc, argv, shortopts, longopts, longind);
 }
-#endif
