@@ -1,7 +1,14 @@
 # Copyright (c) 2025 Nordic Semiconductor ASA
 # SPDX-License-Identifier: Apache-2.0
 
-include(./ironside_support_dir.cmake)
+# The IronSide source directory can be overridden by setting
+# IRONSIDE_SUPPORT_DIR before invoking the build system.
+zephyr_get(IRONSIDE_SUPPORT_DIR SYSBUILD GLOBAL)
+if(NOT DEFINED IRONSIDE_SUPPORT_DIR)
+  set(IRONSIDE_SUPPORT_DIR
+    ${ZEPHYR_CURRENT_MODULE_DIR}/ironside CACHE PATH "IronSide Support Directory"
+  )
+endif()
 
 zephyr_include_directories(include)
 zephyr_include_directories(${IRONSIDE_SUPPORT_DIR}/se/include)
