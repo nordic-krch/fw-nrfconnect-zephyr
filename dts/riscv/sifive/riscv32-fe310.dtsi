@@ -33,8 +33,7 @@
 			compatible = "sifive,e31", "riscv";
 			device_type = "cpu";
 			reg = <0>;
-			riscv,isa-base = "rv32i";
-			riscv,isa-extensions = "i", "m", "a", "c", "zicsr", "zifencei";
+			riscv,isa = "rv32imac_zicsr_zifencei";
 			status = "okay";
 
 			hlic: interrupt-controller {
