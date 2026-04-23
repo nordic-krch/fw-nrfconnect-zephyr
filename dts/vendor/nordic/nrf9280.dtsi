@@ -258,7 +258,6 @@
 				compatible = "nordic,nrf-dppic-local";
 				reg = <0x22000 0x1000>;
 				channels = <32>;
-				groups = <4>;
 				status = "disabled";
 			};
 
@@ -480,8 +479,6 @@
 				compatible = "nordic,nrf-dppic-global";
 				reg = <0x8e1000 0x1000>;
 				status = "disabled";
-				channels = <8>;
-				groups = <2>;
 			};
 
 			timer120: timer@8e2000 {
@@ -584,8 +581,6 @@
 				compatible = "nordic,nrf-dppic-global";
 				reg = <0x922000 0x1000>;
 				status = "disabled";
-				channels = <8>;
-				groups = <2>;
 			};
 
 			rtc130: rtc@928000 {
@@ -715,8 +710,6 @@
 				compatible = "nordic,nrf-dppic-global";
 				reg = <0x981000 0x1000>;
 				status = "disabled";
-				channels = <8>;
-				groups = <2>;
 			};
 
 			adc: adc@982000 {
@@ -750,8 +743,6 @@
 				compatible = "nordic,nrf-dppic-global";
 				reg = <0x991000 0x1000>;
 				status = "disabled";
-				channels = <8>;
-				groups = <2>;
 			};
 
 			qdec130: qdec@994000 {
@@ -779,8 +770,6 @@
 				compatible = "nordic,nrf-dppic-global";
 				reg = <0x9a1000 0x1000>;
 				status = "disabled";
-				channels = <8>;
-				groups = <2>;
 			};
 
 			timer130: timer@9a2000 {
@@ -896,8 +885,6 @@
 				compatible = "nordic,nrf-dppic-global";
 				reg = <0x9b1000 0x1000>;
 				status = "disabled";
-				channels = <8>;
-				groups = <2>;
 			};
 
 			timer132: timer@9b2000 {
@@ -1013,8 +1000,6 @@
 				compatible = "nordic,nrf-dppic-global";
 				reg = <0x9c1000 0x1000>;
 				status = "disabled";
-				channels = <8>;
-				groups = <2>;
 			};
 
 			timer134: timer@9c2000 {
@@ -1130,8 +1115,6 @@
 				compatible = "nordic,nrf-dppic-global";
 				reg = <0x9d1000 0x1000>;
 				status = "disabled";
-				channels = <8>;
-				groups = <2>;
 			};
 
 			timer136: timer@9d2000 {
