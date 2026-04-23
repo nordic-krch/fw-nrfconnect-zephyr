@@ -21,15 +21,12 @@
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/lldp.h>
+#include <zephyr/sys/clock.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/ethernet_vlan.h>
 #include <zephyr/net/ptp_time.h>
 #include <zephyr/random/random.h>
-
-#if defined(CONFIG_NET_DSA_DEPRECATED)
-#include <zephyr/net/dsa.h>
-#endif
 
 #if defined(CONFIG_NVMEM)
 #include <zephyr/nvmem.h>
@@ -211,7 +208,6 @@ enum ethernet_hw_caps {
 
 /** @cond INTERNAL_HIDDEN */
 
-#if !defined(CONFIG_NET_DSA_DEPRECATED)
 enum dsa_port_type {
 	NON_DSA_PORT,
 	DSA_CONDUIT_PORT,
@@ -219,7 +215,6 @@ enum dsa_port_type {
 	DSA_CPU_PORT,
 	DSA_PORT,
 };
-#endif
 
 enum ethernet_config_type {
 	ETHERNET_CONFIG_TYPE_MAC_ADDRESS,
@@ -647,14 +642,8 @@ struct ethernet_lldp {
 	/** Length of the optional Data Unit TLVs */
 	size_t optional_len;
 
-	/** Network interface that has LLDP supported. */
-	struct net_if *iface;
-
-	/** LLDP TX timer start time */
-	int64_t tx_timer_start;
-
-	/** LLDP TX timeout */
-	uint32_t tx_timer_timeout;
+	/** LLDP TX timer timeout */
+	k_timepoint_t tx_timer_timeout;
 
 	/** LLDP RX callback function */
 	net_lldp_recv_cb_t cb;
@@ -689,14 +678,8 @@ struct ethernet_context {
 	struct net_if *iface;
 
 #if defined(CONFIG_NET_LLDP)
-#if NET_VLAN_MAX_COUNT > 0
-#define NET_LLDP_MAX_COUNT NET_VLAN_MAX_COUNT
-#else
-#define NET_LLDP_MAX_COUNT 1
-#endif /* NET_VLAN_MAX_COUNT > 0 */
-
 	/** LLDP specific parameters */
-	struct ethernet_lldp lldp[NET_LLDP_MAX_COUNT];
+	struct ethernet_lldp lldp;
 #endif
 
 	/**
@@ -712,22 +695,7 @@ struct ethernet_context {
 	int port;
 #endif
 
-#if defined(CONFIG_NET_DSA_DEPRECATED)
-	/** DSA RX callback function - for custom processing - like e.g.
-	 * redirecting packets when MAC address is caught
-	 */
-	dsa_net_recv_cb_t dsa_recv_cb;
-
-	/** Switch physical port number */
-	uint8_t dsa_port_idx;
-
-	/** DSA context pointer */
-	struct dsa_context *dsa_ctx;
-
-	/** Send a network packet via DSA master port */
-	dsa_send_t dsa_send;
-
-#elif defined(CONFIG_NET_DSA)
+#if defined(CONFIG_NET_DSA)
 	/** DSA port tpye */
 	enum dsa_port_type dsa_port;
 
@@ -841,34 +809,19 @@ static inline bool net_eth_is_addr_unspecified(struct net_eth_addr *addr)
  */
 static inline bool net_eth_is_addr_multicast(struct net_eth_addr *addr)
 {
-#if defined(CONFIG_NET_IPV6)
-	if (addr->addr[0] == 0x33 &&
-	    addr->addr[1] == 0x33) {
-		return true;
-	}
-#endif
-
-#if defined(CONFIG_NET_IPV4)
-	if (addr->addr[0] == 0x01 &&
-	    addr->addr[1] == 0x00 &&
-	    addr->addr[2] == 0x5e) {
-		return true;
-	}
-#endif
-
-	return false;
+	return addr->addr[0] & 0x01;
 }
 
 /**
- * @brief Check if the Ethernet MAC address is a group address.
+ * @brief Check if the Ethernet MAC address is an unicast address.
  *
  * @param addr A valid pointer to a Ethernet MAC address.
  *
- * @return true if address is a group address, false if not
+ * @return true if address is an unicast address, false if not
  */
-static inline bool net_eth_is_addr_group(struct net_eth_addr *addr)
+static inline bool net_eth_is_addr_unicast(struct net_eth_addr *addr)
 {
-	return addr->addr[0] & 0x01;
+	return !net_eth_is_addr_unspecified(addr) && !net_eth_is_addr_multicast(addr);
 }
 
 /**
@@ -880,7 +833,7 @@ static inline bool net_eth_is_addr_group(struct net_eth_addr *addr)
  */
 static inline bool net_eth_is_addr_valid(struct net_eth_addr *addr)
 {
-	return !net_eth_is_addr_unspecified(addr) && !net_eth_is_addr_group(addr);
+	return !net_eth_is_addr_unspecified(addr) && !net_eth_is_addr_multicast(addr);
 }
 
 /**
@@ -892,7 +845,6 @@ static inline bool net_eth_is_addr_valid(struct net_eth_addr *addr)
  */
 static inline bool net_eth_is_addr_lldp_multicast(struct net_eth_addr *addr)
 {
-#if defined(CONFIG_NET_GPTP) || defined(CONFIG_NET_LLDP)
 	if (addr->addr[0] == 0x01 &&
 	    addr->addr[1] == 0x80 &&
 	    addr->addr[2] == 0xc2 &&
@@ -901,9 +853,6 @@ static inline bool net_eth_is_addr_lldp_multicast(struct net_eth_addr *addr)
 	    addr->addr[5] == 0x0e) {
 		return true;
 	}
-#else
-	ARG_UNUSED(addr);
-#endif
 
 	return false;
 }
@@ -917,7 +866,6 @@ static inline bool net_eth_is_addr_lldp_multicast(struct net_eth_addr *addr)
  */
 static inline bool net_eth_is_addr_ptp_multicast(struct net_eth_addr *addr)
 {
-#if defined(CONFIG_NET_GPTP)
 	if (addr->addr[0] == 0x01 &&
 	    addr->addr[1] == 0x1b &&
 	    addr->addr[2] == 0x19 &&
@@ -926,9 +874,6 @@ static inline bool net_eth_is_addr_ptp_multicast(struct net_eth_addr *addr)
 	    addr->addr[5] == 0x00) {
 		return true;
 	}
-#else
-	ARG_UNUSED(addr);
-#endif
 
 	return false;
 }
@@ -971,7 +916,7 @@ enum ethernet_hw_caps net_eth_get_hw_capabilities(struct net_if *iface)
 	const struct device *dev = net_if_get_device(iface);
 	const struct ethernet_api *api = (struct ethernet_api *)dev->api;
 	enum ethernet_hw_caps caps = (enum ethernet_hw_caps)0;
-#if defined(CONFIG_NET_DSA) && !defined(CONFIG_NET_DSA_DEPRECATED)
+#if defined(CONFIG_NET_DSA)
 	struct ethernet_context *eth_ctx = net_if_l2_data(iface);
 
 	if (eth_ctx->dsa_port == DSA_CONDUIT_PORT) {
@@ -1000,14 +945,14 @@ static inline
 int net_eth_get_hw_config(struct net_if *iface, enum ethernet_config_type type,
 			 struct ethernet_config *config)
 {
-	const struct ethernet_api *eth =
-		(struct ethernet_api *)net_if_get_device(iface)->api;
+	const struct device *dev = net_if_get_device(iface);
+	const struct ethernet_api *eth = dev->api;
 
 	if (!eth->get_config) {
 		return -ENOTSUP;
 	}
 
-	return eth->get_config(net_if_get_device(iface), type, config);
+	return eth->get_config(dev, type, config);
 }
 
 

@@ -22,6 +22,8 @@ from collections import OrderedDict
 from itertools import islice
 from pathlib import Path
 
+from twisterlib import ZEPHYR_BASE
+
 import snippets
 
 try:
@@ -30,7 +32,9 @@ except ImportError:
     print("Install the anytree module to use the --test-tree option")
 
 import scl
+from devicetree import edtlib  # pylint: disable=unused-import
 from twisterlib.config_parser import TwisterConfigParser
+from twisterlib.environment import TwisterEnv
 from twisterlib.error import TwisterRuntimeError
 from twisterlib.platform import Platform, generate_platforms
 from twisterlib.quarantine import Quarantine
@@ -39,17 +43,6 @@ from twisterlib.testinstance import TestInstance
 from twisterlib.testsuite import TestSuite, scan_testsuite_path
 
 logger = logging.getLogger('twister')
-
-ZEPHYR_BASE = os.getenv("ZEPHYR_BASE")
-if not ZEPHYR_BASE:
-    sys.exit("$ZEPHYR_BASE environment variable undefined")
-
-# This is needed to load edt.pickle files.
-sys.path.insert(0, os.path.join(ZEPHYR_BASE, "scripts", "dts",
-                                "python-devicetree", "src"))
-from devicetree import edtlib  # pylint: disable=unused-import
-
-sys.path.insert(0, os.path.join(ZEPHYR_BASE, "scripts/"))
 
 
 class Filters:
@@ -148,6 +141,7 @@ class TestConfiguration:
 
         return levels
 
+
 class TestPlan:
     __test__ = False  # for pytest to skip this class when collects tests
     config_re = re.compile('(CONFIG_[A-Za-z0-9_]+)[=]\"?([^\"]*)\"?$')
@@ -163,7 +157,7 @@ class TestPlan:
     SAMPLE_FILENAME = 'sample.yaml'
     TESTSUITE_FILENAME = 'testcase.yaml'
 
-    def __init__(self, env: Namespace):
+    def __init__(self, env: TwisterEnv):
 
         self.options = env.options
         self.env = env
@@ -216,9 +210,11 @@ class TestPlan:
                                 testsuite_pattern=self.options.test_pattern)
 
         if num == 0:
-            raise TwisterRuntimeError("No testsuites found at the specified location...")
+            logger.error("No testsuites found at the specified location...")
+            raise SystemExit("No testsuites found at the specified location...")
         if self.load_errors:
-            raise TwisterRuntimeError(
+            logger.error(f"Found {self.load_errors} errors loading {num} test configurations.")
+            raise SystemExit(
                 f"Found {self.load_errors} errors loading {num} test configurations."
             )
 
@@ -235,7 +231,7 @@ class TestPlan:
         qv = self.options.quarantine_verify
         if qv and not ql:
             logger.error("No quarantine list given to be verified")
-            raise TwisterRuntimeError("No quarantine list given to be verified")
+            raise SystemExit("No quarantine list given to be verified")
         if ql:
             for quarantine_file in ql:
                 try:
@@ -865,19 +861,39 @@ class TestPlan:
                     platform_scope = list(
                         filter(lambda item: item.name in ts.platform_allow, self.platforms)
                     )
+
+            # Discover required snippet YAML files and load them once per testsuite
+            found_snippets = None
+            snippet_args = None
+            missing_required_snippet = None
+
+            if ts.required_snippets:
+                snippet_args = {"snippets": ts.required_snippets}
+                found_snippets = snippets.find_snippets_in_roots(
+                    snippet_args,
+                    [*self.env.snippet_roots, Path(ts.source_dir)]
+                )
+                for this_snippet in snippet_args["snippets"]:
+                    if this_snippet not in found_snippets:
+                        missing_required_snippet = this_snippet
+                        break
+
             # list of instances per testsuite, aka configurations.
             instance_list = []
             for itoolchain, plat in itertools.product(
                 ts.integration_toolchains or [None], platform_scope
             ):
+                if (plat.arch == "unit") != (ts.type == "unit"):
+                    # Discard silently
+                    continue
+
                 if itoolchain:
                     toolchain = itoolchain
                 elif plat.arch in ['posix', 'unit']:
-                    # workaround until toolchain variant in zephyr is overhauled and improved.
-                    if self.env.toolchain in ['llvm']:
-                        toolchain = 'llvm'
+                    if self.env.toolchain in ['host/llvm']:
+                        toolchain = 'host/llvm'
                     else:
-                        toolchain = 'host'
+                        toolchain = 'host/gnu'
                 else:
                     toolchain = "zephyr" if not self.env.toolchain else self.env.toolchain
 
@@ -889,10 +905,6 @@ class TestPlan:
 
                 if not force_platform and self.check_platform(plat,exclude_platform):
                     instance.add_filter("Platform is excluded on command line.", Filters.CMD_LINE)
-
-                if (plat.arch == "unit") != (ts.type == "unit"):
-                    # Discard silently
-                    continue
 
                 if ts.modules and self.modules and not set(ts.modules).issubset(set(self.modules)):
                     instance.add_filter(
@@ -991,7 +1003,9 @@ class TestPlan:
                     instance.add_filter("Native platform requires Linux", Filters.ENVIRONMENT)
 
                 if not force_toolchain \
-                        and toolchain and (toolchain not in plat.supported_toolchains):
+                        and toolchain and (toolchain not in plat.supported_toolchains) and \
+                                        (toolchain.split('/')[0] not in plat.supported_toolchains):
+
                     instance.add_filter(
                         f"Not supported by the toolchain: {toolchain}",
                         Filters.PLATFORM
@@ -1029,25 +1043,13 @@ class TestPlan:
                     instance.add_filter("Excluded tags per platform (only_tags)", Filters.PLATFORM)
 
                 if ts.required_snippets:
-                    missing_snippet = False
-                    snippet_args = {"snippets": ts.required_snippets}
-                    found_snippets = snippets.find_snippets_in_roots(
-                        snippet_args,
-                        [*self.env.snippet_roots, Path(ts.source_dir)]
-                    )
-
-                    # Search and check that all required snippet files are found
-                    for this_snippet in snippet_args['snippets']:
-                        if this_snippet not in found_snippets:
-                            logger.error(
-                                f"Can't find snippet '{this_snippet}' for test '{ts.name}'"
-                            )
-                            instance.status = TwisterStatus.ERROR
-                            instance.reason = f"Snippet {this_snippet} not found"
-                            missing_snippet = True
-                            break
-
-                    if not missing_snippet:
+                    if missing_required_snippet:
+                        logger.error(
+                            f"Can't find snippet '{missing_required_snippet}' for test '{ts.name}'"
+                        )
+                        instance.status = TwisterStatus.ERROR
+                        instance.reason = f"Snippet {missing_required_snippet} not found"
+                    else:
                         # Look for required snippets and check that they are applicable for these
                         # platforms/boards
                         for this_snippet in snippet_args['snippets']:

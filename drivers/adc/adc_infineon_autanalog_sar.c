@@ -133,7 +133,7 @@ static void ifx_init_pdl_structs(struct ifx_autanalog_sar_adc_data *data,
 		.posBufPwr = CY_AUTANALOG_SAR_BUF_PWR_OFF,
 		.negBufPwr = CY_AUTANALOG_SAR_BUF_PWR_OFF,
 		/* Note:  This setting chooses "accumulate and dump" vs. "interleaved" for channels
-		 * where averaging is enabled.  The selection for "accumulate" vs. "accumlate and
+		 * where averaging is enabled.  The selection for "accumulate" vs. "accumulate and
 		 * divide" is tracked by adc->average_is_accumulate and is applied in the hardware
 		 * on a per-channel basis.
 		 */
@@ -684,7 +684,7 @@ static int ifx_autanalog_sar_adc_init(const struct device *dev)
 
 #ifdef CONFIG_ADC_ASYNC
 #define ADC_IFX_AUTANALOG_SAR_DRIVER_API(n)                                                        \
-	static const struct adc_driver_api ifx_autanalog_sar_adc_api_##n = {                       \
+	static DEVICE_API(adc, ifx_autanalog_sar_adc_api_##n) = {                                  \
 		.channel_setup = ifx_autanalog_sar_adc_channel_setup,                              \
 		.read = ifx_autanalog_sar_adc_read,                                                \
 		.read_async = ifx_autanalog_sar_adc_read_async,                                    \
@@ -692,7 +692,7 @@ static int ifx_autanalog_sar_adc_init(const struct device *dev)
 	};
 #else
 #define ADC_IFX_AUTANALOG_SAR_DRIVER_API(n)                                                        \
-	static const struct adc_driver_api ifx_autanalog_sar_adc_api_##n = {                       \
+	static DEVICE_API(adc, ifx_autanalog_sar_adc_api_##n) = {                                  \
 		.channel_setup = ifx_autanalog_sar_adc_channel_setup,                              \
 		.read = ifx_autanalog_sar_adc_read,                                                \
 		.ref_internal = DT_INST_PROP(n, vref_mv),                                          \

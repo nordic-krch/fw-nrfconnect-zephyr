@@ -163,7 +163,7 @@ static void xilinx_axienet_rx_callback(const struct device *dma, void *user_data
 		goto setup_new_transfer;
 	}
 	if (net_recv_data(data->interface, pkt) < 0) {
-		LOG_ERR("Coult not receive packet data!");
+		LOG_ERR("Could not receive packet data!");
 		net_pkt_unref(pkt);
 		goto setup_new_transfer;
 	}
@@ -440,8 +440,7 @@ static int xilinx_axienet_set_config(const struct device *dev, enum ethernet_con
 	case ETHERNET_CONFIG_TYPE_MAC_ADDRESS:
 		memcpy(data->mac_addr, config->mac_address.addr, sizeof(data->mac_addr));
 		xilinx_axienet_set_mac_address(dev_config, data);
-		return net_if_set_link_addr(data->interface, data->mac_addr,
-			sizeof(data->mac_addr), NET_LINK_ETHERNET);
+		return 0;
 	default:
 		LOG_ERR("Unsupported configuration set: %u", type);
 		return -EINVAL;
@@ -509,7 +508,6 @@ static int xilinx_axienet_probe(const struct device *dev)
 	const struct xilinx_axienet_config *config = dev->config;
 	struct xilinx_axienet_data *data = dev->data;
 	uint32_t status;
-	int err;
 
 	status = xilinx_axienet_read_register(
 		config, XILINX_AXIENET_RECEIVER_CONFIGURATION_WORD_1_REG_OFFSET);

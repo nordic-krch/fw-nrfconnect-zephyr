@@ -39,6 +39,9 @@ UICR_RANGES = {
     'nrf54l': {
         'Application': (0x00FFD000, 0x00FFDA00),
     },
+    'nrf71': {
+        'Application': (0x00FFD000, 0x00FFDA00)
+    },
     'nrf91': {
         'Application': (0x00FF8000, 0x00FF8800),
     },
@@ -90,7 +93,7 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
     def do_add_parser(cls, parser):
         parser.add_argument('--nrf-family',
                             choices=['NRF51', 'NRF52', 'NRF53', 'NRF54L',
-                                     'NRF54H', 'NRF91', 'NRF92'],
+                                     'NRF54H', 'NRF71', 'NRF91', 'NRF92'],
                             help='''MCU family; still accepted for
                             compatibility only''')
         # Not using a mutual exclusive group for softreset and pinreset due to
@@ -226,6 +229,8 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
             self.family = 'nrf54l'
         elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF54H'):
             self.family = 'nrf54h'
+        elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF71'):
+            self.family = 'nrf71'
         elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF91'):
             self.family = 'nrf91'
         elif self.build_conf.getboolean('CONFIG_SOC_SERIES_NRF92'):
@@ -365,7 +370,7 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
                 erase_arg = 'ERASE_ALL'
             elif self.erase_mode:
                 erase_arg = erase_mode
-            elif self.family == 'nrf54l':
+            elif self.family in ('nrf54l', 'nrf71'):
                 erase_arg = 'ERASE_NONE'
             else:
                 erase_arg = 'ERASE_RANGES_TOUCHED_BY_FIRMWARE'
@@ -395,6 +400,12 @@ class NrfBinaryRunner(ZephyrBinaryRunner):
             core = "Application"
 
         self.op_program(self.hex_, erase_arg, ext_mem_erase_opt, defer=True, core=core)
+
+        # provision relevant slots if prot_ram_inv_slots.json exists in the build directory
+        prot_ram_inv_slots = Path(self.cfg.build_dir).parent / 'prot_ram_inv_slots.json'
+        if prot_ram_inv_slots.exists():
+            self.logger.info(f'Provisioning key file: {prot_ram_inv_slots}')
+            self.exec_op('x-provision-keys', keyfile=str(prot_ram_inv_slots), defer=True)
 
         if self.erase or self.recover:
             # provision keys if keyfile.json exists in the build directory

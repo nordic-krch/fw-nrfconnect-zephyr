@@ -284,9 +284,9 @@ int dns_dispatcher_unregister(struct dns_socket_dispatcher *ctx);
  * Enumerate the extensions that are available in the address info
  */
 enum dns_resolve_extension {
-	DNS_RESOLVE_NONE = 0, /*<< No extension in use   */
-	DNS_RESOLVE_TXT,      /*<< TXT field is returned */
-	DNS_RESOLVE_SRV,      /*<< SRV field is returned */
+	DNS_RESOLVE_NONE = 0, /**< No extension in use   */
+	DNS_RESOLVE_TXT,      /**< TXT field is returned */
+	DNS_RESOLVE_SRV,      /**< SRV field is returned */
 };
 
 /** TXT record information */
@@ -530,6 +530,11 @@ struct dns_resolve_context {
 		 */
 		uint16_t query_hash;
 
+		/* Number of additional queries sent to resolve CNAME record
+		 * name aliases.
+		 */
+		uint8_t additional_queries;
+
 		/** Flag to indicate that the callback has been called at least once. */
 		bool cb_called;
 	} queries[DNS_NUM_CONCUR_QUERIES];
@@ -541,6 +546,11 @@ struct dns_resolve_context {
 	/** DNS packet forwarding callback. */
 	dns_resolve_pkt_fw_cb_t pkt_fw_cb;
 #endif /* CONFIG_DNS_RESOLVER_PACKET_FORWARDING */
+
+/** @cond INTERNAL_HIDDEN */
+	/** How many times the DNS context init been called. */
+	int init_called;
+/** @endcond */
 };
 
 /** @cond INTERNAL_HIDDEN */

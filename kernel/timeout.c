@@ -26,18 +26,6 @@ static struct k_spinlock timeout_lock;
 /* Ticks left to process in the currently-executing sys_clock_announce() */
 static int announce_remaining;
 
-#if defined(CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME)
-unsigned int z_clock_hw_cycles_per_sec = CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC;
-
-#ifdef CONFIG_USERSPACE
-static inline unsigned int z_vrfy_sys_clock_hw_cycles_per_sec_runtime_get(void)
-{
-	return z_impl_sys_clock_hw_cycles_per_sec_runtime_get();
-}
-#include <zephyr/syscalls/sys_clock_hw_cycles_per_sec_runtime_get_mrsh.c>
-#endif /* CONFIG_USERSPACE */
-#endif /* CONFIG_TIMER_READS_ITS_FREQUENCY_AT_RUNTIME */
-
 static struct _timeout *first(void)
 {
 	sys_dnode_t *t = sys_dlist_peek_head(&timeout_list);
@@ -170,6 +158,8 @@ int z_abort_timeout(struct _timeout *to)
 			if (is_first) {
 				sys_clock_set_timeout(next_timeout(elapsed()), false);
 			}
+		} else if (to->dticks == TIMEOUT_DTICKS_ANNOUNCING) {
+			to->dticks = TIMEOUT_DTICKS_ABORTED;
 		}
 	}
 
@@ -230,10 +220,8 @@ int32_t z_get_next_timeout_expiry(void)
 	return ret;
 }
 
-void sys_clock_announce(int32_t ticks)
+void sys_clock_announce_locked(int32_t ticks, k_spinlock_key_t key)
 {
-	k_spinlock_key_t key = k_spin_lock(&timeout_lock);
-
 	/* We release the lock around the callbacks below, so on SMP
 	 * systems someone might be already running the loop.  Don't
 	 * race (which will cause parallel execution of "sequential"
@@ -258,6 +246,7 @@ void sys_clock_announce(int32_t ticks)
 		curr_tick += dt;
 		t->dticks = 0;
 		remove_timeout(t);
+		t->dticks = TIMEOUT_DTICKS_ANNOUNCING;
 
 		k_spin_unlock(&timeout_lock, key);
 		t->fn(t);
@@ -280,6 +269,18 @@ void sys_clock_announce(int32_t ticks)
 	z_time_slice();
 #endif /* CONFIG_TIMESLICING */
 }
+
+#if defined(CONFIG_SMP) || defined(CONFIG_SPIN_VALIDATE)
+k_spinlock_key_t sys_clock_lock(void)
+{
+	return k_spin_lock(&timeout_lock);
+}
+
+void sys_clock_unlock(k_spinlock_key_t key)
+{
+	k_spin_unlock(&timeout_lock, key);
+}
+#endif
 
 int64_t sys_clock_tick_get(void)
 {

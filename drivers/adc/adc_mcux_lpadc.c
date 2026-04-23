@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 NXP
+ * Copyright 2023-2024, 2026 NXP
  * Copyright (c) 2020 Toby Firth
  *
  * Based on adc_mcux_adc16.c and adc_mcux_adc12.c, which are:
@@ -18,7 +18,10 @@
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/opamp.h>
-
+#include <zephyr/pm/policy.h>
+#if CONFIG_PM_DEVICE
+#include <zephyr/pm/device.h>
+#endif
 #ifdef CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN
 #include <zephyr/drivers/dma.h>
 #endif
@@ -38,6 +41,9 @@ LOG_MODULE_REGISTER(nxp_mcux_lpadc);
  */
 #define CHANNELS_PER_SIDE 0x8
 
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+#define ADC_CONTEXT_ENABLE_ON_COMPLETE
+#endif
 #define ADC_CONTEXT_USES_KERNEL_TIMER
 #include "adc_context.h"
 
@@ -46,8 +52,8 @@ struct mcux_lpadc_config {
 	lpadc_reference_voltage_source_t voltage_ref;
 	uint8_t power_level;
 	uint32_t calibration_average;
-	uint32_t offset_a;
-	uint32_t offset_b;
+	int16_t offset_a;
+	int16_t offset_b;
 	void (*irq_config_func)(const struct device *dev);
 	const struct pinctrl_dev_config *pincfg;
 	const struct device *ref_supplies;
@@ -65,6 +71,9 @@ struct mcux_lpadc_config {
 	 * (from that channel node's zephyr,vref-mv)
 	 */
 	uint16_t opamp_vref_mv;
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+	bool pm_device_constraints;
+#endif
 #ifdef CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN
 	const struct device *dma_dev;
 	uint32_t dma_channel;
@@ -89,6 +98,9 @@ struct mcux_lpadc_data {
 	uint16_t sample_max_raw;
 	uint8_t channels_count;
 	bool use_dma;
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+	bool pm_lock_active;
+#endif
 #ifdef CONFIG_ADC_MCUX_LPADC_DMA_DRIVEN
 	struct dma_config dma_cfg;
 	struct dma_block_config dma_block;
@@ -298,8 +310,7 @@ static int mcux_lpadc_start_read(const struct device *dev,
 	struct mcux_lpadc_data *data = dev->data;
 	lpadc_hardware_average_mode_t hardware_average_mode;
 	uint8_t channel, last_enabled;
-#if defined(FSL_FEATURE_LPADC_HAS_CMDL_MODE) \
-	&& FSL_FEATURE_LPADC_HAS_CMDL_MODE
+#if defined(FSL_FEATURE_LPADC_HAS_CMDL_MODE) && FSL_FEATURE_LPADC_HAS_CMDL_MODE
 	lpadc_conversion_resolution_mode_t resolution_mode;
 
 	switch (sequence->resolution) {
@@ -417,6 +428,31 @@ static int mcux_lpadc_start_read(const struct device *dev,
 	return error;
 }
 
+static void mcux_lpadc_pm_policy_device_power_lock_get(const struct device *dev)
+{
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+	struct mcux_lpadc_data *data = dev->data;
+	const struct mcux_lpadc_config *config = dev->config;
+
+	if (config->pm_device_constraints && !data->pm_lock_active) {
+		pm_policy_device_power_lock_get(dev);
+		data->pm_lock_active = true;
+	}
+#endif
+}
+
+static void mcux_lpadc_pm_policy_device_power_lock_put(const struct device *dev)
+{
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+	struct mcux_lpadc_data *data = dev->data;
+
+	if (data->pm_lock_active) {
+		pm_policy_device_power_lock_put(dev);
+		data->pm_lock_active = false;
+	}
+#endif
+}
+
 static int mcux_lpadc_read_async(const struct device *dev,
 			const struct adc_sequence *sequence,
 			struct k_poll_signal *async)
@@ -425,7 +461,15 @@ static int mcux_lpadc_read_async(const struct device *dev,
 	int error;
 
 	adc_context_lock(&data->ctx, async ? true : false, async);
+
+	mcux_lpadc_pm_policy_device_power_lock_get(dev);
+
 	error = mcux_lpadc_start_read(dev, sequence);
+
+	if (error != 0) {
+		mcux_lpadc_pm_policy_device_power_lock_put(dev);
+	}
+
 	adc_context_release(&data->ctx, error);
 
 	return error;
@@ -436,6 +480,17 @@ static int mcux_lpadc_read(const struct device *dev,
 {
 	return mcux_lpadc_read_async(dev, sequence, NULL);
 }
+
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+static void adc_context_on_complete(struct adc_context *ctx, int status)
+{
+	ARG_UNUSED(status);
+
+	struct mcux_lpadc_data *data = CONTAINER_OF(ctx, struct mcux_lpadc_data, ctx);
+
+	mcux_lpadc_pm_policy_device_power_lock_put(data->dev);
+}
+#endif
 
 static void mcux_lpadc_start_channel(const struct device *dev)
 {
@@ -672,8 +727,7 @@ static void mcux_lpadc_isr(const struct device *dev)
 	int16_t result;
 	uint16_t channel;
 
-#if (defined(FSL_FEATURE_LPADC_FIFO_COUNT) \
-	&& (FSL_FEATURE_LPADC_FIFO_COUNT == 2U))
+#if (defined(FSL_FEATURE_LPADC_FIFO_COUNT) && (FSL_FEATURE_LPADC_FIFO_COUNT == 2U))
 	LPADC_GetConvResult(base, &conv_result, 0U);
 #else
 	LPADC_GetConvResult(base, &conv_result);
@@ -707,8 +761,8 @@ static void mcux_lpadc_isr(const struct device *dev)
 				result -= 0x1000;
 			}
 		}
-		*data->buffer++ = result;
 #endif
+		*data->buffer++ = result;
 	} else {
 		*data->buffer++ = conv_result.convValue;
 	}
@@ -752,6 +806,56 @@ static void mcux_lpadc_isr(const struct device *dev)
 	}
 }
 
+#if CONFIG_PM_DEVICE
+static int mcux_lpadc_pm_callback(const struct device *dev, enum pm_device_action action)
+{
+	const struct mcux_lpadc_config *config = dev->config;
+	const struct device *regulator = config->ref_supplies;
+	int err;
+
+	switch (action) {
+	case PM_DEVICE_ACTION_RESUME:
+
+		if (regulator != NULL) {
+			err = regulator_enable(regulator);
+			if (err < 0) {
+				return err;
+			}
+		}
+
+		err = pinctrl_apply_state(config->pincfg, PINCTRL_STATE_DEFAULT);
+		if (err < 0 && err != -ENOENT) {
+			return err;
+		}
+
+		LPADC_Enable(config->base, true);
+
+		return 0;
+
+	case PM_DEVICE_ACTION_SUSPEND:
+
+		LPADC_Enable(config->base, false);
+
+		err = pinctrl_apply_state(config->pincfg, PINCTRL_STATE_SLEEP);
+		if (err < 0 && err != -ENOENT) {
+			return err;
+		}
+
+		if (regulator != NULL) {
+			err = regulator_disable(regulator);
+			if (err < 0) {
+				return err;
+			}
+		}
+
+		return 0;
+
+	default:
+		return -ENOTSUP;
+	}
+}
+#endif
+
 static int mcux_lpadc_init(const struct device *dev)
 {
 	const struct mcux_lpadc_config *config = dev->config;
@@ -775,43 +879,59 @@ static int mcux_lpadc_init(const struct device *dev)
 		}
 	}
 
+	if (!device_is_ready(config->clock_dev)) {
+		LOG_ERR("clock device not ready");
+		return -ENODEV;
+	}
+
+	err = clock_control_configure(config->clock_dev, config->clock_subsys, NULL);
+	if (err && err != -ENOSYS) {
+		/* Real error occurred */
+		LOG_ERR("Failed to configure clock: %d", err);
+		return err;
+	}
+
 	LPADC_GetDefaultConfig(&adc_config);
 
 	adc_config.enableAnalogPreliminary = true;
 	adc_config.referenceVoltageSource = config->voltage_ref;
 
-#if defined(FSL_FEATURE_LPADC_HAS_CTRL_CAL_AVGS) \
-	&& FSL_FEATURE_LPADC_HAS_CTRL_CAL_AVGS
+#if defined(FSL_FEATURE_LPADC_HAS_CTRL_CAL_AVGS) && FSL_FEATURE_LPADC_HAS_CTRL_CAL_AVGS
 	adc_config.conversionAverageMode = config->calibration_average;
 #endif /* FSL_FEATURE_LPADC_HAS_CTRL_CAL_AVGS */
 
 #if !(DT_ANY_INST_HAS_PROP_STATUS_OKAY(no_power_level))
-		adc_config.powerLevelMode = config->power_level;
+	adc_config.powerLevelMode = config->power_level;
 #endif
 
 	LPADC_Init(base, &adc_config);
 
 	/* Do ADC calibration. */
-#if defined(FSL_FEATURE_LPADC_HAS_CTRL_CALOFS) \
-	&& FSL_FEATURE_LPADC_HAS_CTRL_CALOFS
-#if defined(FSL_FEATURE_LPADC_HAS_OFSTRIM) \
-	&& FSL_FEATURE_LPADC_HAS_OFSTRIM
+#if defined(FSL_FEATURE_LPADC_HAS_CTRL_CALOFS) && FSL_FEATURE_LPADC_HAS_CTRL_CALOFS
+#if defined(FSL_FEATURE_LPADC_HAS_OFSTRIM) && FSL_FEATURE_LPADC_HAS_OFSTRIM
 	/* Request offset calibration. */
-#if defined(CONFIG_LPADC_DO_OFFSET_CALIBRATION) \
-	&& CONFIG_LPADC_DO_OFFSET_CALIBRATION
+#if defined(CONFIG_LPADC_DO_OFFSET_CALIBRATION) && CONFIG_LPADC_DO_OFFSET_CALIBRATION
 	LPADC_DoOffsetCalibration(base);
 #else
-	LPADC_SetOffsetValue(base,
-			config->offset_a,
-			config->offset_b);
-#endif  /* DEMO_LPADC_DO_OFFSET_CALIBRATION */
-#endif  /* FSL_FEATURE_LPADC_HAS_OFSTRIM */
-	/* Request gain calibration. */
-	LPADC_DoAutoCalibration(base);
+#if defined(FSL_FEATURE_LPADC_OFSTRIM_COUNT) && (FSL_FEATURE_LPADC_OFSTRIM_COUNT == 1U)
+	LPADC_SetOffsetValue(base, config->offset_a);
+#else
+	LPADC_SetOffsetValue(base, config->offset_a, config->offset_b);
+#endif /* FSL_FEATURE_LPADC_OFSTRIM_COUNT */
+#endif /* DEMO_LPADC_DO_OFFSET_CALIBRATION */
+#endif /* FSL_FEATURE_LPADC_HAS_OFSTRIM */
+	/* Request gain calibration.
+	 * A 1us delay is required between offset calibration and gain
+	 * calibration. Without it, the gain calibration request is not
+	 * accepted by the hardware, causing LPADC_FinishAutoCalibration()
+	 * to spin forever on GCC[RDY]. See GitHub issue #105652.
+	 */
+	k_busy_wait(1U);
+	LPADC_PrepareAutoCalibration(base);
+	LPADC_FinishAutoCalibration(base);
 #endif /* FSL_FEATURE_LPADC_HAS_CTRL_CALOFS */
 
-#if (defined(FSL_FEATURE_LPADC_HAS_CFG_CALOFS) \
-	&& FSL_FEATURE_LPADC_HAS_CFG_CALOFS)
+#if (defined(FSL_FEATURE_LPADC_HAS_CFG_CALOFS) && FSL_FEATURE_LPADC_HAS_CFG_CALOFS)
 	/* Do auto calibration. */
 	LPADC_DoAutoCalibration(base);
 #endif /* FSL_FEATURE_LPADC_HAS_CFG_CALOFS */
@@ -844,6 +964,23 @@ static int mcux_lpadc_init(const struct device *dev)
 	data->desired_gain_index = -1;
 
 	adc_context_unlock_unconditionally(&data->ctx);
+
+
+
+#if CONFIG_PM_DEVICE
+	/* Disable LPADC here, in pm_device_driver_init,
+	 * - if device runtime PM is enabled, the LPADC state will be set to SUSPEND,
+	 *   we should keep same state in hardware.
+	 * - if device runtime PM is not enabled, pm_device_driver_init will resume LPADC.
+	 * - if the LPADC is in a power domain, and the power domain is off, the LPADC
+	 *   state will set to OFF, disabled LPADC matches the state.
+	 */
+	LPADC_Enable(config->base, false);
+
+	return pm_device_driver_init(dev, mcux_lpadc_pm_callback);
+#else
+	return 0;
+#endif
 
 	return 0;
 }
@@ -885,29 +1022,44 @@ static DEVICE_API(adc, mcux_lpadc_driver_api) = {
 #define DMA_INIT(n)
 #endif
 
-#define LPADC_MCUX_INIT(n)						\
-									\
-	static void mcux_lpadc_config_func_##n(const struct device *dev);	\
-									\
-	PINCTRL_DT_INST_DEFINE(n);						\
-	static const struct mcux_lpadc_config mcux_lpadc_config_##n = {	\
-		.base = (ADC_Type *)DT_INST_REG_ADDR(n),	\
-		.voltage_ref =	DT_INST_PROP(n, voltage_ref),	\
-		.calibration_average = DT_INST_ENUM_IDX_OR(n, calibration_average, 0),	\
-		.power_level = DT_INST_PROP_OR(n, power_level, 0),	\
-		.offset_a = DT_INST_PROP(n, offset_value_a),	\
-		.offset_b = DT_INST_PROP(n, offset_value_b),	\
-		.irq_config_func = mcux_lpadc_config_func_##n,				\
-		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),			\
-		.ref_supplies = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, nxp_references),\
-						(DEVICE_DT_GET(DT_PHANDLE(DT_DRV_INST(n),\
-						nxp_references))), (NULL)),\
-		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),                                \
-		.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name),\
-		.ref_supply_val = COND_CODE_1(\
-						DT_INST_NODE_HAS_PROP(n, nxp_references),\
-						(DT_PHA(DT_DRV_INST(n), nxp_references, vref_mv)), \
-						(0)),\
+#if defined(CONFIG_PM_POLICY_DEVICE_CONSTRAINTS)
+#define PM_POLICY_DEVICE_CONSTRAINTS_INIT(n)							\
+	.pm_device_constraints = DT_INST_NODE_HAS_PROP(n, zephyr_disabling_power_states),
+#else
+#define PM_POLICY_DEVICE_CONSTRAINTS_INIT(n)
+#endif
+
+#if CONFIG_PM_DEVICE
+#define LPADC_PM_DEVICE_DEFINE		PM_DEVICE_DT_INST_DEFINE(n, mcux_lpadc_pm_callback);
+#define LPADC_PM_DEVICE_GET		PM_DEVICE_DT_INST_GET(n)
+#else
+#define LPADC_PM_DEVICE_DEFINE
+#define LPADC_PM_DEVICE_GET		NULL
+#endif
+
+#define LPADC_MCUX_INIT(n)									\
+												\
+	static void mcux_lpadc_config_func_##n(const struct device *dev);			\
+												\
+	PINCTRL_DT_INST_DEFINE(n);								\
+	static const struct mcux_lpadc_config mcux_lpadc_config_##n = {				\
+		.base = (ADC_Type *)DT_INST_REG_ADDR(n),					\
+		.voltage_ref =	DT_INST_PROP(n, voltage_ref),					\
+		.calibration_average = DT_INST_ENUM_IDX_OR(n, calibration_average, 0),		\
+		.power_level = DT_INST_PROP_OR(n, power_level, 0),				\
+		.offset_a = (int16_t)DT_INST_PROP(n, offset_value_a),				\
+		.offset_b = (int16_t)DT_INST_PROP(n, offset_value_b),				\
+		.irq_config_func = mcux_lpadc_config_func_##n,					\
+		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),					\
+		.ref_supplies = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, nxp_references),		\
+					    (DEVICE_DT_GET(DT_PHANDLE(DT_DRV_INST(n),		\
+					    nxp_references))), (NULL)),				\
+		.clock_dev = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(n)),				\
+		.clock_subsys = (clock_control_subsys_t)DT_INST_CLOCKS_CELL(n, name),		\
+		.ref_supply_val = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, nxp_references),		\
+					      (DT_PHA(DT_DRV_INST(n), nxp_references, vref_mv)),\
+					      (0)),						\
+		PM_POLICY_DEVICE_CONSTRAINTS_INIT(n)						\
 		.opamp = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, nxp_opamps),			\
 			(DEVICE_DT_GET(DT_INST_PHANDLE_BY_IDX(n, nxp_opamps, 0))), (NULL)),	\
 		.opamp_channel = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, nxp_opamps),		\
@@ -921,29 +1073,29 @@ static DEVICE_API(adc, mcux_lpadc_driver_api) = {
 			(DT_PROP_BY_IDX(DT_DRV_INST(n), ideal_sample_range, 1)), (UINT32_MAX)),	\
 			OPAMP_GAINS_INIT(n)							\
 		DMA_INIT(n)									\
-	};									\
-	static struct mcux_lpadc_data mcux_lpadc_data_##n = {	\
-		ADC_CONTEXT_INIT_TIMER(mcux_lpadc_data_##n, ctx),	\
-		ADC_CONTEXT_INIT_LOCK(mcux_lpadc_data_##n, ctx),	\
-		ADC_CONTEXT_INIT_SYNC(mcux_lpadc_data_##n, ctx),	\
-	};														\
-										\
-	DEVICE_DT_INST_DEFINE(n,						\
-		mcux_lpadc_init, NULL, &mcux_lpadc_data_##n,			\
-		&mcux_lpadc_config_##n, POST_KERNEL,				\
-		CONFIG_ADC_INIT_PRIORITY,					\
-		&mcux_lpadc_driver_api);							\
-										\
-	static void mcux_lpadc_config_func_##n(const struct device *dev)	\
-	{									\
-		IRQ_CONNECT(DT_INST_IRQN(n),					\
-			DT_INST_IRQ(n, priority), mcux_lpadc_isr,	\
-			DEVICE_DT_INST_GET(n), 0);				\
-										\
-		irq_enable(DT_INST_IRQN(n));					\
-	}	\
-										\
-	BUILD_ASSERT((DT_INST_PROP_OR(n, power_level, 0) >= 0) && \
-		(DT_INST_PROP_OR(n, power_level, 0) <= 3), "power_level: wrong value");
+	};											\
+												\
+	static struct mcux_lpadc_data mcux_lpadc_data_##n = {					\
+		ADC_CONTEXT_INIT_TIMER(mcux_lpadc_data_##n, ctx),				\
+		ADC_CONTEXT_INIT_LOCK(mcux_lpadc_data_##n, ctx),				\
+		ADC_CONTEXT_INIT_SYNC(mcux_lpadc_data_##n, ctx),				\
+	};											\
+												\
+	LPADC_PM_DEVICE_DEFINE									\
+												\
+	DEVICE_DT_INST_DEFINE(n, mcux_lpadc_init, LPADC_PM_DEVICE_GET, &mcux_lpadc_data_##n,	\
+			      &mcux_lpadc_config_##n, POST_KERNEL, CONFIG_ADC_INIT_PRIORITY,	\
+			      &mcux_lpadc_driver_api);						\
+												\
+	static void mcux_lpadc_config_func_##n(const struct device *dev)			\
+	{											\
+		IRQ_CONNECT(DT_INST_IRQN(n), DT_INST_IRQ(n, priority), mcux_lpadc_isr,		\
+			    DEVICE_DT_INST_GET(n), 0);						\
+												\
+		irq_enable(DT_INST_IRQN(n));							\
+	}											\
+												\
+	BUILD_ASSERT((DT_INST_PROP_OR(n, power_level, 0) >= 0) &&				\
+		     (DT_INST_PROP_OR(n, power_level, 0) <= 3), "power_level: wrong value");
 
 DT_INST_FOREACH_STATUS_OKAY(LPADC_MCUX_INIT)

@@ -546,6 +546,11 @@ static int airoc_mgmt_scan(const struct device *dev, struct wifi_scan_params *pa
 			   scan_result_cb_t cb)
 {
 	struct airoc_wifi_data *data = dev->data;
+	enum wifi_scan_type scan_type = WIFI_SCAN_TYPE_ACTIVE;
+
+	if (params != NULL) {
+		scan_type = params->scan_type;
+	}
 
 	if (data->scan_rslt_cb != NULL) {
 		LOG_INF("Scan callback in progress");
@@ -559,8 +564,8 @@ static int airoc_mgmt_scan(const struct device *dev, struct wifi_scan_params *pa
 	data->scan_rslt_cb = cb;
 
 	/* Connect to the network */
-	if (whd_wifi_scan(airoc_sta_if, params->scan_type, WHD_BSS_TYPE_ANY, &(data->ssid), NULL,
-			  NULL, NULL, scan_callback, &(data->scan_result), data) != WHD_SUCCESS) {
+	if (whd_wifi_scan(airoc_sta_if, scan_type, WHD_BSS_TYPE_ANY, &(data->ssid), NULL, NULL,
+			  NULL, scan_callback, &(data->scan_result), data) != WHD_SUCCESS) {
 		LOG_ERR("Failed to start scan");
 		k_sem_give(&data->sema_common);
 		return -EAGAIN;
@@ -700,7 +705,7 @@ static int airoc_mgmt_ap_enable(const struct device *dev, struct wifi_connect_re
 	struct airoc_wifi_data *data = dev->data;
 	whd_security_t security;
 	whd_ssid_t ssid;
-	uint8_t channel;
+	uint16_t chanspec;
 	int ret = 0;
 
 	if (k_sem_take(&data->sema_common, K_MSEC(AIROC_WIFI_WAIT_SEMA_MS)) != 0) {
@@ -736,13 +741,31 @@ static int airoc_mgmt_ap_enable(const struct device *dev, struct wifi_connect_re
 	 * - 2G channels from 1 to 11,
 	 * - 5G channels from 36 to 165
 	 */
-	if (((params->channel > 0) && (params->channel < 12)) ||
-	    ((params->channel > 35) && (params->channel < 166))) {
-		channel = params->channel;
+	if ((params->channel > 0) && (params->channel < 12)) {
+		chanspec = params->channel | GET_C_VAR(airoc_ap_if->whd_driver, CHANSPEC_BAND_2G);
+	} else if ((params->channel > 35) && (params->channel < 166)) {
+		chanspec = params->channel | GET_C_VAR(airoc_ap_if->whd_driver, CHANSPEC_BAND_5G);
 	} else {
-		channel = 1;
+		chanspec = 1 | GET_C_VAR(airoc_ap_if->whd_driver, CHANSPEC_BAND_2G);
 		LOG_WRN("Discard of setting unsupported channel: %u (will set 1)",
 			params->channel);
+	}
+
+	switch (params->bandwidth) {
+	case WIFI_FREQ_BANDWIDTH_20MHZ:
+		chanspec |= GET_C_VAR(airoc_ap_if->whd_driver, CHANSPEC_BW_20);
+		break;
+	case WIFI_FREQ_BANDWIDTH_40MHZ:
+		chanspec |= GET_C_VAR(airoc_ap_if->whd_driver, CHANSPEC_BW_40);
+		break;
+	case WIFI_FREQ_BANDWIDTH_80MHZ:
+		chanspec |= GET_C_VAR(airoc_ap_if->whd_driver, CHANSPEC_BW_80);
+		break;
+	default:
+		chanspec |= GET_C_VAR(airoc_ap_if->whd_driver, CHANSPEC_BW_20);
+		LOG_WRN("Discard of setting unsupported bandwidth: %u (will set 20MHz)",
+			params->bandwidth);
+		break;
 	}
 
 	switch (params->security) {
@@ -760,7 +783,7 @@ static int airoc_mgmt_ap_enable(const struct device *dev, struct wifi_connect_re
 	}
 
 	if (whd_wifi_init_ap(airoc_ap_if, &ssid, security, (const uint8_t *)params->psk,
-			     params->psk_length, channel) != 0) {
+			     params->psk_length, chanspec) != 0) {
 		LOG_ERR("Failed to init whd ap interface");
 		ret = -EAGAIN;
 		goto error;

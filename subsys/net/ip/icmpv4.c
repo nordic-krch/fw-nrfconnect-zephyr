@@ -14,6 +14,7 @@ LOG_MODULE_REGISTER(net_icmpv4, CONFIG_NET_ICMPV4_LOG_LEVEL);
 #include <errno.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/net/net_core.h>
+#include <zephyr/net/net_log.h>
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/icmp.h>
@@ -53,6 +54,8 @@ int net_icmpv4_finalize(struct net_pkt *pkt, bool force_chksum)
 	NET_PKT_DATA_ACCESS_CONTIGUOUS_DEFINE(icmpv4_access,
 					      struct net_icmp_hdr);
 	struct net_icmp_hdr *icmp_hdr;
+	int ret;
+	uint16_t chksum = 0;
 
 	if (IS_ENABLED(CONFIG_NET_IPV4_HDR_OPTIONS)) {
 		if (net_pkt_skip(pkt, net_pkt_ipv4_opts_len(pkt))) {
@@ -68,7 +71,13 @@ int net_icmpv4_finalize(struct net_pkt *pkt, bool force_chksum)
 	icmp_hdr->chksum = 0U;
 	if (net_if_need_calc_tx_checksum(net_pkt_iface(pkt), NET_IF_CHECKSUM_IPV4_ICMP) ||
 		force_chksum) {
-		icmp_hdr->chksum = net_calc_chksum_icmpv4(pkt);
+
+		ret = net_calc_chksum_icmpv4(pkt, &chksum);
+		if (ret < 0) {
+			return ret;
+		}
+
+		icmp_hdr->chksum = chksum;
 		net_pkt_set_chksum_done(pkt, true);
 	}
 
@@ -412,17 +421,20 @@ static int icmpv4_handle_header_options(struct net_pkt *pkt,
 }
 #endif
 
-static int icmpv4_handle_echo_request(struct net_icmp_ctx *ctx,
-				      struct net_pkt *pkt,
-				      struct net_icmp_ip_hdr *hdr,
-				      struct net_icmp_hdr *icmp_hdr,
-				      void *user_data)
+static enum net_verdict icmpv4_handle_echo_request(struct net_icmp_ctx *ctx,
+						   struct net_pkt *pkt,
+						   struct net_icmp_ip_hdr *hdr,
+						   struct net_icmp_hdr *icmp_hdr,
+						   void *user_data)
 {
 	struct net_pkt *reply = NULL;
 	struct net_ipv4_hdr *ip_hdr = hdr->ipv4;
 	struct net_in_addr req_src, req_dst;
 	const struct net_in_addr *src;
+	struct net_pkt_cursor backup;
 	int16_t payload_len;
+
+	net_pkt_cursor_backup(pkt, &backup);
 
 	net_ipv4_addr_copy_raw(req_src.s4_addr, ip_hdr->src);
 	net_ipv4_addr_copy_raw(req_dst.s4_addr, ip_hdr->dst);
@@ -501,7 +513,8 @@ static int icmpv4_handle_echo_request(struct net_icmp_ctx *ctx,
 
 	net_stats_update_icmp_sent(net_pkt_iface(reply));
 
-	return 0;
+	net_pkt_cursor_restore(pkt, &backup);
+	return NET_CONTINUE;
 drop:
 	if (reply) {
 		net_pkt_unref(reply);
@@ -509,7 +522,7 @@ drop:
 
 	net_stats_update_icmp_drop(net_pkt_iface(pkt));
 
-	return -EIO;
+	return NET_DROP;
 }
 
 int net_icmpv4_send_error(struct net_pkt *orig, uint8_t type, uint8_t code)
@@ -614,7 +627,9 @@ enum net_verdict net_icmpv4_input(struct net_pkt *pkt,
 	NET_PKT_DATA_ACCESS_CONTIGUOUS_DEFINE(icmp_access,
 					      struct net_icmp_hdr);
 	struct net_icmp_hdr *icmp_hdr;
+	enum net_verdict verdict;
 	int ret;
+	uint16_t chksum = 0;
 
 	icmp_hdr = (struct net_icmp_hdr *)net_pkt_get_data(pkt, &icmp_access);
 	if (!icmp_hdr) {
@@ -624,8 +639,10 @@ enum net_verdict net_icmpv4_input(struct net_pkt *pkt,
 
 	if (net_if_need_calc_rx_checksum(net_pkt_iface(pkt), NET_IF_CHECKSUM_IPV4_ICMP) ||
 	    net_pkt_is_ip_reassembled(pkt)) {
-		if (net_calc_chksum_icmpv4(pkt) != 0U) {
-			NET_DBG("DROP: Invalid checksum");
+
+		ret = net_calc_chksum_icmpv4(pkt, &chksum);
+		if (ret < 0 || chksum != 0U) {
+			NET_DBG("DROP: Invalid checksum or error %d", ret);
 			goto drop;
 		}
 	}
@@ -644,9 +661,10 @@ enum net_verdict net_icmpv4_input(struct net_pkt *pkt,
 
 	net_stats_update_icmp_recv(net_pkt_iface(pkt));
 
-	ret = net_icmp_call_ipv4_handlers(pkt, ip_hdr, icmp_hdr);
-	if (ret < 0 && ret != -ENOENT) {
-		NET_ERR("ICMPv4 handling failure (%d)", ret);
+	verdict = net_icmp_call_ipv4_handlers(pkt, ip_hdr, icmp_hdr);
+	if (verdict == NET_DROP) {
+		NET_DBG("ICMPv4 handling failure");
+		goto drop;
 	}
 
 	net_pkt_unref(pkt);
@@ -665,11 +683,11 @@ drop:
  */
 #define MIN_IPV4_MTU NET_IPV4_MTU
 
-static int icmpv4_handle_dst_unreach(struct net_icmp_ctx *ctx,
-				     struct net_pkt *pkt,
-				     struct net_icmp_ip_hdr *hdr,
-				     struct net_icmp_hdr *icmp_hdr,
-				     void *user_data)
+static enum net_verdict icmpv4_handle_dst_unreach(struct net_icmp_ctx *ctx,
+						  struct net_pkt *pkt,
+						  struct net_icmp_ip_hdr *hdr,
+						  struct net_icmp_hdr *icmp_hdr,
+						  void *user_data)
 {
 	NET_PKT_DATA_ACCESS_CONTIGUOUS_DEFINE(dst_unreach_access,
 					      struct net_icmpv4_dest_unreach);
@@ -680,10 +698,13 @@ static int icmpv4_handle_dst_unreach(struct net_icmp_ctx *ctx,
 	struct net_sockaddr_in sockaddr_src = {
 		.sin_family = NET_AF_INET,
 	};
+	struct net_pkt_cursor backup;
 	uint16_t mtu;
 	int ret;
 
 	ARG_UNUSED(user_data);
+
+	net_pkt_cursor_backup(pkt, &backup);
 
 	dest_unreach_hdr = (struct net_icmpv4_dest_unreach *)
 		net_pkt_get_data(pkt, &dst_unreach_access);
@@ -743,19 +764,21 @@ static int icmpv4_handle_dst_unreach(struct net_icmp_ctx *ctx,
 			net_sprint_ipv4_addr(&ip_hdr->src), ret, mtu);
 	}
 
-	return 0;
+	net_pkt_cursor_restore(pkt, &backup);
+	return NET_CONTINUE;
 drop:
 	net_stats_update_ipv4_pmtu_drop(net_pkt_iface(pkt));
 
-	return -EIO;
+	return NET_DROP;
 
 silent_drop:
 	/* If the event is not really an error then just ignore it and
-	 * return 0 so that icmpv4 module will not complain about it.
+	 * return NET_CONTINUE so that icmpv4 module will not complain about it.
 	 */
 	net_stats_update_ipv4_pmtu_drop(net_pkt_iface(pkt));
 
-	return 0;
+	net_pkt_cursor_restore(pkt, &backup);
+	return NET_CONTINUE;
 }
 
 static struct net_icmp_ctx dst_unreach_ctx;

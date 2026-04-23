@@ -59,11 +59,6 @@ int rv3032_counter_get_value(const struct device *dev, uint32_t *ticks)
 	return 0;
 }
 
-int rv3032_counter_get_value_64(const struct device *dev, uint64_t *ticks)
-{
-	return -ENOTSUP;
-}
-
 int rv3032_counter_reset(const struct device *dev)
 {
 	const struct rv3032_counter_config *config = dev->config;
@@ -193,7 +188,7 @@ int rv3032_counter_cancel_alarm(const struct device *dev, uint8_t chan_id)
 		return -ENOTSUP;
 	}
 
-	/* disable counter interrut */
+	/* disable counter interrupt */
 	err = mfd_rv3032_update_reg8(config->mfd, RV3032_REG_CONTROL1, RV3032_CONTROL1_TE, 0);
 	if (err) {
 		LOG_ERR("Status register read failed after EEPROM refresh: %d", err);
@@ -301,7 +296,6 @@ static DEVICE_API(counter, rv3032_counter_api) = {
 	.start = rv3032_counter_start,
 	.stop = rv3032_counter_stop,
 	.get_value = rv3032_counter_get_value,
-	.get_value_64 = rv3032_counter_get_value_64,
 	.reset = rv3032_counter_reset,
 	.set_alarm = rv3032_counter_set_alarm,
 	.cancel_alarm = rv3032_counter_cancel_alarm,

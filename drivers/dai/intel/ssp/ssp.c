@@ -147,7 +147,7 @@ static int dai_ssp_gcd(int a, int b)
 		b = -b;
 	}
 
-	/* Find the greatest power of 2 that devides both a and b */
+	/* Find the greatest power of 2 that divides both a and b */
 	for (k = 0; ((a | b) & 1) == 0; k++) {
 		a >>= 1;
 		b >>= 1;
@@ -1916,7 +1916,7 @@ static int dai_ssp_check_dma_control(const uint8_t *aux_ptr, int aux_len)
 		case SSP_LINK_CLK_SOURCE:
 			break;
 		default:
-			LOG_ERR("incorect config type %u", aux_tlv->type);
+			LOG_ERR("incorrect config type %u", aux_tlv->type);
 			return -EINVAL;
 		}
 
@@ -2066,15 +2066,13 @@ static int dai_ssp_set_clock_control_ver_1_5(struct dai_intel_ssp *dp,
 	return 0;
 }
 
-static int dai_ssp_set_clock_control_ver_1(struct dai_intel_ssp *dp,
+static void dai_ssp_set_clock_control_ver_1(struct dai_intel_ssp *dp,
 					   const struct dai_intel_ipc4_ssp_mclk_config *cc)
 {
 	/* ssp blob is set by pcm_hw_params for ipc4 stream, so enable
 	 * mclk and bclk at this time.
 	 */
 	dai_ssp_mn_set_mclk_blob(dp, cc->mdivc, cc->mdivr);
-
-	return 0;
 }
 
 #if SSP_IP_VER > SSP_IP_VER_2_0
@@ -2227,10 +2225,7 @@ static int dai_ssp_set_config_blob(struct dai_intel_ssp *dp, const struct dai_co
 		}
 	} else {
 		dai_ssp_set_reg_config(dp, cfg, (void *)&blob->i2s_driver_config.i2s_config);
-		err = dai_ssp_set_clock_control_ver_1(dp, &blob->i2s_driver_config.mclk_config);
-		if (err) {
-			return err;
-		}
+		dai_ssp_set_clock_control_ver_1(dp, &blob->i2s_driver_config.mclk_config);
 	}
 
 	ssp_plat_data->clk_active |= SSP_CLK_MCLK_ES_REQ;
@@ -2398,7 +2393,7 @@ static void dai_ssp_stop(struct dai_intel_ssp *dp, int direction)
 		break;
 	}
 
-	/* stop Rx if neeed */
+	/* stop Rx if need */
 	if (direction == DAI_DIR_CAPTURE &&
 	    dp->state[DAI_DIR_CAPTURE] != DAI_STATE_PRE_RUNNING) {
 		LOG_INF("SSP%d RX", dp->dai_index);

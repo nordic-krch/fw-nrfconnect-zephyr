@@ -340,10 +340,6 @@ SECTIONS {
     *(.xt_except_desc_end)
     *(.dynamic)
     *(.gnu.version_d)
-    _bss_table_start = .;
-    LONG(_bss_start)
-    LONG(_bss_end)
-    _bss_table_end = .;
     MMU_PAGE_ALIGN
   } >ram
 
@@ -366,10 +362,16 @@ SECTIONS {
   __common_rom_region_end = .;
     __rodata_region_end = .;
 
-  .noinit SEGSTART_UNCACHED : HDR_MMU_PAGE_ALIGN {
+  .noinit SEGSTART_UNCACHED (NOLOAD) : HDR_MMU_PAGE_ALIGN {
     __data_start = .;
     *(.noinit)
     *(.noinit.*)
+
+/* Located in generated directory. This file is populated by the
+ * zephyr_linker_sources() CMake function.
+ */
+#include <snippets-noinit.ld>
+
   } >ucram
 
 #include <zephyr/linker/kobject-priv-stacks.ld>
@@ -465,7 +467,7 @@ SECTIONS {
 
   .bss SEGSTART_UNCACHED (NOLOAD) :
   {
-    _bss_start = .;
+    __bss_start = .;
 
 #if defined(CONFIG_ZTEST) && defined(CONFIG_SIMULATOR_XTENSA)
     /* For some weird unknown reasons, the simulator really do not
@@ -499,7 +501,7 @@ SECTIONS {
     *(COMMON)
     . = ALIGN(8);
     MMU_PAGE_ALIGN
-    _bss_end = .;
+    __bss_end = .;
   } >ucram
 
   . = SEGSTART_UNCACHED;
@@ -635,4 +637,6 @@ SECTIONS {
 	MEM_MAP_SYM_PROVIDE(__rodata_region_end)
 	MEM_MAP_SYM_PROVIDE(__text_region_start)
 	MEM_MAP_SYM_PROVIDE(__text_region_end)
+	MEM_MAP_SYM_PROVIDE(_shared_heap_start)
+	MEM_MAP_SYM_PROVIDE(_shared_heap_end)
 }

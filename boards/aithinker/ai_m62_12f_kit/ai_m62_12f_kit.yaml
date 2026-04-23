@@ -23,4 +23,8 @@ supported:
   - flash
   - input
   - pwm
+  - adc
+  - entropy
+  - crypto
+  - counter
 vendor: bflb
