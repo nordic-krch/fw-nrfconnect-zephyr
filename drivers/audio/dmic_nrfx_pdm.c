@@ -471,12 +471,11 @@ static void init_clock_manager(const struct device *dev)
 #elif CONFIG_CLOCK_CONTROL_NRF
 	clock_control_subsys_t subsys;
 	struct dmic_nrfx_pdm_drv_data *drv_data = dev->data;
-#if NRF_CLOCK_HAS_HFCLKAUDIO || NRF_CLOCK_HAS_HFCLK24M
+#if NRF_CLOCK_HAS_HFCLKAUDIO
 	const struct dmic_nrfx_pdm_drv_cfg *drv_cfg = dev->config;
 
 	if (drv_cfg->clk_src == ACLK) {
-		IF_ENABLED(NRF_CLOCK_HAS_HFCLKAUDIO, (subsys = CLOCK_CONTROL_NRF_SUBSYS_HFAUDIO;))
-		IF_ENABLED(NRF_CLOCK_HAS_HFCLK24M, (subsys = CLOCK_CONTROL_NRF_SUBSYS_HF24M;))
+		subsys = CLOCK_CONTROL_NRF_SUBSYS_HFAUDIO;
 	} else
 #endif
 	{
