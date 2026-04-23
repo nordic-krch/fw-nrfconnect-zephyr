@@ -105,4 +105,3 @@ endif # HAS_NORDIC_DMM
 
 rsource "vpr/Kconfig"
 rsource "uicr/Kconfig"
-rsource "Kconfig.tfm"
