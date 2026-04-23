@@ -1063,9 +1063,10 @@ static int usbd_enqueue_setup(struct usbd_context *const uds_ctx)
 	struct net_buf *setup;
 	int ret;
 
-	/* Reset and increase reference counter to facilitate buffer reuse */
-	setup = net_buf_ref(uds_ctx->setup_buf);
-	net_buf_reset(setup);
+	setup = udc_ctrl_setup_alloc(uds_ctx->dev);
+	if (setup == NULL) {
+		return -ENOMEM;
+	}
 
 	ret = usbd_ep_ctrl_enqueue(uds_ctx, setup);
 	if (ret) {
