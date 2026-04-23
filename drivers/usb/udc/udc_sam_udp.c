@@ -549,6 +549,7 @@ static int udc_sam_udp_ep_dequeue(const struct device *dev,
 {
 	Udp *base = udc_sam_udp_get_base(dev);
 	uint8_t hw_ep = USB_EP_GET_IDX(cfg->addr);
+	struct net_buf *buf;
 
 	/* Cancel pending TX data for IN endpoints per datasheet 40.6.2.5 */
 	if (USB_EP_DIR_IS_IN(cfg->addr)) {
@@ -567,7 +568,10 @@ static int udc_sam_udp_ep_dequeue(const struct device *dev,
 	 * rapid queue/cancel cycles (unlink tests).
 	 */
 
-	udc_ep_cancel_queued(dev, cfg);
+	buf = udc_buf_get_all(cfg);
+	if (buf) {
+		udc_submit_ep_event(dev, buf, -ECONNABORTED);
+	}
 
 	return 0;
 }

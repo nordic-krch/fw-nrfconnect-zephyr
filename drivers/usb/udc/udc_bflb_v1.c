@@ -1350,7 +1350,10 @@ static int udc_bflb_v1_ep_dequeue(const struct device *dev,
 		fifo_rx_clear(base, ep_idx);
 	}
 
-	udc_ep_cancel_queued(dev, ep_cfg);
+	buf = udc_buf_get_all(ep_cfg);
+	if (buf != NULL) {
+		udc_submit_ep_event(dev, buf, -ECONNABORTED);
+	}
 
 	/* Clear pending completion signal to prevent stale processing */
 	atomic_and(&priv->xfer_finished, ~BIT(ep_to_bnum(ep_cfg->addr)));
