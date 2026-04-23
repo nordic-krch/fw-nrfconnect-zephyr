@@ -422,19 +422,12 @@ int bt_id_set_adv_private_addr(struct bt_le_ext_adv *adv)
 
 	if (IS_ENABLED(CONFIG_BT_PRIVACY) &&
 	    (adv->options & BT_LE_ADV_OPT_USE_NRPA)) {
-		bt_addr_le_t addr;
+		/* The host doesn't support setting NRPAs when BT_PRIVACY=y.
+		 * In that case you probably want to use an RPA anyway.
+		 */
+		LOG_ERR("NRPA not supported when BT_PRIVACY=y");
 
-		err = bt_addr_le_create_nrpa(&addr);
-		if (err != 0) {
-			return err;
-		}
-
-		err = bt_id_set_adv_random_addr(adv, &addr.a);
-		if (err == 0 && !atomic_test_bit(adv->flags, BT_ADV_LIMITED)) {
-			le_rpa_timeout_submit();
-		}
-
-		return err;
+		return -ENOSYS;
 	}
 
 	if (!(IS_ENABLED(CONFIG_BT_EXT_ADV) &&
