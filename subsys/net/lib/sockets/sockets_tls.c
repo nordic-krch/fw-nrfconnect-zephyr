@@ -302,8 +302,6 @@ static struct k_mutex context_lock;
  */
 #define TLS_WAIT_MS 100
 
-static int tls_mbedtls_reset_session(struct tls_context *context);
-
 static void tls_session_cache_reset(void)
 {
 	for (int i = 0; i < ARRAY_SIZE(client_cache); i++) {
@@ -1145,30 +1143,6 @@ static int dtls_server_switch_session_on_rx(struct tls_context *tls_ctx)
 		(void)zsock_recv(tls_ctx->sock, &tmp_buf, sizeof(tmp_buf),
 				 ZSOCK_MSG_DONTWAIT);
 	}
-
-	return ret;
-}
-
-static int dtls_server_free_active_session(struct tls_context *tls_ctx)
-{
-	int ret = 0;
-
-	if (sys_slist_len(&tls_ctx->sessions) > 1) {
-		struct tls_session_context *session_ctx;
-
-		/* Free the session and set the active session to any other. */
-		sys_slist_find_and_remove(&tls_ctx->sessions,
-					  &tls_ctx->active_session->node);
-		tls_session_free(tls_ctx->active_session);
-		tls_ctx->active_session =
-			SYS_SLIST_PEEK_HEAD_CONTAINER(&tls_ctx->sessions,
-						      session_ctx, node);
-	} else {
-		/* Last session, just reset it. */
-		ret = tls_mbedtls_reset_session(tls_ctx);
-	}
-
-	tls_ctx->error = 0;
 
 	return ret;
 }
@@ -2955,12 +2929,7 @@ static ssize_t sendto_dtls_server(struct tls_context *ctx, const void *buf,
 		return -1;
 	}
 
-	ret = send_tls(ctx, buf, len, flags);
-	if (ret < 0 && errno != EAGAIN) {
-		(void)dtls_server_free_active_session(ctx);
-	}
-
-	return ret;
+	return send_tls(ctx, buf, len, flags);
 }
 #endif /* CONFIG_NET_SOCKETS_ENABLE_DTLS */
 
@@ -3430,7 +3399,7 @@ static ssize_t recvfrom_dtls_server(struct tls_context *ctx, void *buf,
 					break;
 				}
 
-				ret = dtls_server_free_active_session(ctx);
+				ret = tls_mbedtls_reset_session(ctx);
 				if (ret == 0) {
 					repeat = true;
 				} else {
@@ -3461,7 +3430,7 @@ static ssize_t recvfrom_dtls_server(struct tls_context *ctx, void *buf,
 
 		case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
 		case MBEDTLS_ERR_SSL_CLIENT_RECONNECT:
-			ret = dtls_server_free_active_session(ctx);
+			ret = tls_mbedtls_reset_session(ctx);
 			if (ret == 0) {
 				repeat = true;
 			} else {
@@ -3489,12 +3458,13 @@ static ssize_t recvfrom_dtls_server(struct tls_context *ctx, void *buf,
 		default:
 			NET_ERR("DTLS server recv error: -%x", -ret);
 
-			ret = dtls_server_free_active_session(ctx);
-			if (ret == 0) {
-				repeat = true;
-			} else {
+			ret = tls_mbedtls_reset_session(ctx);
+			if (ret != 0) {
 				ctx->error = ENOMEM;
 				errno = ENOMEM;
+			} else {
+				ctx->error = ECONNABORTED;
+				ret = -ECONNABORTED;
 			}
 
 			break;
@@ -3733,12 +3703,7 @@ again:
 				return 0;
 			}
 
-			if (is_server) {
-				ret = dtls_server_free_active_session(ctx);
-			} else {
-				ret = tls_mbedtls_reset_session(ctx);
-			}
-
+			ret = tls_mbedtls_reset_session(ctx);
 			if (ret != 0) {
 				return -ENOMEM;
 			}
@@ -3762,13 +3727,7 @@ again:
 			 * resetting the context would result in an error instead
 			 * of 0 in a consecutive recv() call.
 			 */
-
-			if (is_server) {
-				ret = dtls_server_free_active_session(ctx);
-			} else {
-				ret = tls_mbedtls_reset_session(ctx);
-			}
-
+			ret = tls_mbedtls_reset_session(ctx);
 			if (ret != 0) {
 				return -ENOMEM;
 			}
@@ -3798,14 +3757,8 @@ again:
 		/* MbedTLS API documentation requires session to
 		 * be reset in other error cases
 		 */
-		if (is_server) {
-			if (dtls_server_free_active_session(ctx) != 0) {
-				return -ENOMEM;
-			}
-		} else {
-			if (tls_mbedtls_reset_session(ctx) != 0) {
-				return -ENOMEM;
-			}
+		if (tls_mbedtls_reset_session(ctx) != 0) {
+			return -ENOMEM;
 		}
 
 		if (ret == MBEDTLS_ERR_SSL_TIMEOUT) {
