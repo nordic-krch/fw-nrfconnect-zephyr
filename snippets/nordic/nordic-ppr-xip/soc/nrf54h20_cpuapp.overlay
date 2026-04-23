@@ -10,5 +10,4 @@
 
 &uart135 {
 	status = "reserved";
-	interrupt-parent = <&cpuppr_clic>;
 };
