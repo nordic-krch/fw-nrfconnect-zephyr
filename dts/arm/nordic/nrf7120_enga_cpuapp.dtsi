@@ -17,7 +17,7 @@ nvic: &cpuapp_nvic {};
 
 / {
 	chosen {
-		zephyr,entropy = &rng;
+		zephyr,entropy = &psa_rng;
 	};
 
 	soc {
