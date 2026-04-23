@@ -220,8 +220,6 @@ struct uarte_async_rx {
 #endif
 	uint8_t idle_cnt;
 	uint8_t flush_cnt;
-	/* Flag indicating that STOPRX is triggered and RXTO is expected. */
-	bool stopped;
 	volatile bool enabled;
 	volatile bool discard_fifo;
 };
@@ -889,26 +887,6 @@ static void rx_disable_finalize(const struct device *dev)
 	}
 }
 
-/** @brief Trigger RX stop.
- *
- * Function triggers RX stop and sets the flag if it is expected that RXTO will be generated.
- *
- * @param dev Device.
- * @param force If true then RXTO is expected, if false then it depends on presence of the next
- * buffer.
- */
-static ALWAYS_INLINE void trigger_stoprx(const struct device *dev, bool force)
-{
-	struct uarte_nrfx_data *data = dev->data;
-	struct uarte_async_rx *async_rx = &data->async->rx;
-
-	/* RXTO is not expected after triggering STOPRX if there is ENDRX_STARTRX short.
-	 * It is enabled if there is a second buffer.
-	 */
-	async_rx->stopped = force ? true : (async_rx->next_buf == NULL);
-	nrf_uarte_task_trigger(get_uarte_instance(dev), NRF_UARTE_TASK_STOPRX);
-}
-
 static int rx_disable(const struct device *dev, bool api)
 {
 	struct uarte_nrfx_data *data = dev->data;
@@ -946,7 +924,7 @@ static int rx_disable(const struct device *dev, bool api)
 		async_rx->discard_fifo = true;
 	}
 
-	trigger_stoprx(dev, true);
+	nrf_uarte_task_trigger(uarte, NRF_UARTE_TASK_STOPRX);
 	irq_unlock(key);
 
 	return 0;
@@ -1998,15 +1976,16 @@ static void tx_timeout(struct k_timer *timer)
  */
 static void rx_idle_line_handle(const struct device *dev)
 {
+	NRF_UARTE_Type *uarte = get_uarte_instance(dev);
+
 	if (!IS_CBWT_LEGACY(dev)) {
-		trigger_stoprx(dev, false);
+		nrf_uarte_task_trigger(uarte, NRF_UARTE_TASK_STOPRX);
 		return;
 	}
 #ifdef CONFIG_UARTE_NRFX_UARTE_COUNT_BYTES_WITH_TIMER_LEGACY
 	const struct uarte_nrfx_config *cfg = dev->config;
 	struct uarte_nrfx_data *data = dev->data;
 	struct uarte_async_rx *async_rx = &data->async->rx;
-	NRF_UARTE_Type *uarte = get_uarte_instance(dev);
 	uint32_t len;
 
 	if (async_rx->is_in_irq == true) {
@@ -2060,7 +2039,7 @@ static void rx_timeout(struct k_timer *timer)
 		}
 	} else {
 		if (!rxdrdy) {
-			trigger_stoprx(dev, false);
+			nrf_uarte_task_trigger(uarte, NRF_UARTE_TASK_STOPRX);
 			k_timer_stop(timer);
 		}
 	}
@@ -2210,7 +2189,6 @@ static void endrx_isr(const struct device *dev, bool rxstarted, bool rxto)
 			if (!rxstarted && !rxto) {
 				nrf_uarte_task_trigger(uarte, NRF_UARTE_TASK_STARTRX);
 				nrf_uarte_event_clear(uarte, NRF_UARTE_EVENT_RXTO);
-				async_rx->stopped = false;
 				if (IS_ENABLED(RX_FRAMETIMEOUT_WORKAROUND)) {
 					data->flags |= UARTE_FLAG_FTIMEOUT_WATCH;
 					start_timeout = true;
@@ -2220,7 +2198,7 @@ static void endrx_isr(const struct device *dev, bool rxstarted, bool rxto)
 			if (!K_TIMEOUT_EQ(async_rx->timeout, K_NO_WAIT)) {
 				k_timer_stop(&async_rx->timer);
 			}
-			trigger_stoprx(dev, true);
+			nrf_uarte_task_trigger(uarte, NRF_UARTE_TASK_STOPRX);
 		}
 
 		irq_unlock(key);
@@ -2452,22 +2430,10 @@ static void uarte_nrfx_isr_async(const void *arg)
 	uint32_t imask = nrf_uarte_int_enable_check(uarte, UINT32_MAX);
 	bool rxto, endrx, rxstarted, rxdrdy, error;
 
-#ifdef UARTE_HAS_FRAME_TIMEOUT
-	/* Frame timeout short may also trigger RX stopping. Detect that case to set
-	 * the flag that RXTO is expected.
-	 */
-	if (!IS_CBWT(dev) &&
-	    event_check_clear(uarte, NRF_UARTE_EVENT_FRAME_TIMEOUT,
-			      NRF_UARTE_INT_RXTO_MASK, imask) && (async_rx->next_buf == NULL)) {
-		async_rx->stopped = true;
-	}
-#endif
-
 	/* Order of reading those events is important as it must be ensured that processing
 	 * order is maintained.
 	 */
-	rxto = event_check_clear(uarte, NRF_UARTE_EVENT_RXTO, NRF_UARTE_INT_RXTO_MASK, imask) &&
-		(async_rx->stopped == true);
+	rxto = event_check_clear(uarte, NRF_UARTE_EVENT_RXTO, NRF_UARTE_INT_RXTO_MASK, imask);
 	endrx = event_check_clear(uarte, NRF_UARTE_EVENT_ENDRX, NRF_UARTE_INT_ENDRX_MASK, imask);
 	rxdrdy = event_check_clear(uarte, NRF_UARTE_EVENT_RXDRDY, NRF_UARTE_INT_RXDRDY_MASK, imask);
 	rxstarted = event_check_clear(uarte, NRF_UARTE_EVENT_RXSTARTED,
@@ -2500,11 +2466,7 @@ static void uarte_nrfx_isr_async(const void *arg)
 		endrx_isr(dev, false, false);
 	}
 
-	/* If RXTO is set, check also if STOPRX was triggered as there are cases where RXTO
-	 * is unexpectedly generated with ENDRX and such events shall be discarded.
-	 */
 	if (rxto) {
-		async_rx->stopped = false;
 #ifdef CONFIG_UARTE_NRFX_UARTE_COUNT_BYTES_WITH_TIMER
 		if (IS_CBWT(dev)) {
 			cbwt_rxto_isr(dev, true);
