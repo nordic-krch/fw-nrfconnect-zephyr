@@ -82,12 +82,6 @@ The specific formats by subtree:
   creating new symbols, check if similar ones already exist in other
   architectures.
 
-* **Samples (/samples)**: Use ``SAMPLE_`` for symbols, this is to prevent conflicts with external
-  modules.
-
-* **Tests (/tests)**: Use ``TEST_`` for symbols, this is to prevent conflicts with external
-  modules.
-
 Examples
 ========
 
@@ -104,18 +98,6 @@ Examples
 **Sensor Examples:**
 
 .. literalinclude:: kconfig_example_sensor.txt
-   :language: kconfig
-   :start-after: start-after-here
-
-**Sample examples:**
-
-.. literalinclude:: kconfig_example_sample.txt
-   :language: kconfig
-   :start-after: start-after-here
-
-**Test examples:**
-
-.. literalinclude:: kconfig_example_test.txt
    :language: kconfig
    :start-after: start-after-here
 
