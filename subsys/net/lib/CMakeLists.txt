@@ -2,7 +2,6 @@
 
 add_subdirectory(utils)
 add_subdirectory_ifdef(CONFIG_COAP coap)
-add_subdirectory_ifdef(CONFIG_FTP_CLIENT ftp)
 add_subdirectory_ifdef(CONFIG_LWM2M lwm2m)
 add_subdirectory_ifdef(CONFIG_SOCKS socks)
 add_subdirectory_ifdef(CONFIG_SNTP sntp)
