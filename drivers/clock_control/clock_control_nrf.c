@@ -316,6 +316,7 @@ static void hfclk_start(void)
 		hf_start_tstamp = k_uptime_get();
 	}
 
+	LOG_WRN("hfclk start");
 	nrfx_clock_start(NRF_CLOCK_DOMAIN_HFCLK);
 }
 
@@ -325,6 +326,7 @@ static void hfclk_stop(void)
 		hf_stop_tstamp = k_uptime_get();
 	}
 
+	LOG_WRN("hfclk stop");
 	nrfx_clock_stop(NRF_CLOCK_DOMAIN_HFCLK);
 }
 
@@ -715,13 +717,17 @@ static void clock_event_handler(nrfx_clock_evt_type_t event)
 	switch (event) {
 #if NRF_CLOCK_HAS_XO_TUNE
 	case NRFX_CLOCK_EVT_XO_TUNED:
+		LOG_WRN("xotuned");
 		hfclkstarted_handle(dev);
 		break;
 	case NRFX_CLOCK_EVT_XO_TUNE_ERROR:
+		LOG_WRN("xotune_error");
 	case NRFX_CLOCK_EVT_XO_TUNE_FAILED:
+		LOG_WRN("xotune_failed");
 		/* No processing needed. */
 		break;
 	case NRFX_CLOCK_EVT_HFCLK_STARTED:
+		LOG_WRN("hfclk_started");
 		/* HFCLK is stable after XOTUNED event.
 		 * HFCLK_STARTED means only that clock has been started.
 		 */

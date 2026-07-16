@@ -19,6 +19,9 @@
 #include <zephyr/usb/usbd.h>
 #include <zephyr/usb/class/usbd_hid.h>
 
+#include <zephyr/drivers/clock_control.h>
+#include <zephyr/drivers/clock_control/nrf_clock_control.h>
+
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
@@ -36,6 +39,85 @@ enum mouse_report_idx {
 	MOUSE_WHEEL_REPORT_IDX = 3,
 	MOUSE_REPORT_COUNT = 4,
 };
+
+int clock_start(clock_control_subsys_t clock)
+{
+	int err;
+	int res;
+	struct onoff_manager *clk_mgr;
+	struct onoff_client clk_cli;
+
+	clk_mgr = z_nrf_clock_control_get_onoff(clock);
+	if (!clk_mgr) {
+		LOG_ERR("Unable to get the clock manager");
+		return -ENODEV;
+	}
+
+	sys_notify_init_spinwait(&clk_cli.notify);
+
+	err = onoff_request(clk_mgr, &clk_cli);
+	if (err < 0) {
+		LOG_ERR("Clock request failed: %d", err);
+		return err;
+	}
+
+	size_t try_cnt = 0;
+	do {
+		err = sys_notify_fetch_result(&clk_cli.notify, &res);
+		if (!err && res) {
+			LOG_ERR("Clock could not be started: %d", res);
+			return res;
+		}
+
+		if (err == -EAGAIN) {
+			k_msleep(100);
+			try_cnt++;
+			if (try_cnt == 20) {
+				LOG_ERR("Stuck...");
+			}
+		}
+	} while (err == -EAGAIN);
+
+	__ASSERT(err == 0, "Unexpected return code from sys_notify_fetch_result: %d", err);
+	if (err) {
+		LOG_ERR("Unexpected return code from sys_notify_fetch_result: %d", err);
+		return err;
+	}
+
+	LOG_INF("Clock %d started", (int)clock);
+	return 0;
+}
+
+int clock_stop(clock_control_subsys_t clock)
+{
+	int err;
+	struct onoff_manager *clk_mgr;
+
+	clk_mgr = z_nrf_clock_control_get_onoff(clock);
+	if (!clk_mgr) {
+		LOG_ERR("Unable to get the clock manager");
+		return -ENODEV;
+	}
+
+	err = onoff_release(clk_mgr);
+	if (err < 0) {
+		LOG_ERR("Clock release failed: %d", err);
+		return err;
+	}
+
+	LOG_INF("Clock %d stopped", (int)clock);
+	return 0;
+}
+
+static void trigger_hf_clock(void)
+{
+	LOG_INF("Triggering HF clock");
+	int err = clock_start(CLOCK_CONTROL_NRF_SUBSYS_HF);
+	if (!err) {
+		err = clock_stop(CLOCK_CONTROL_NRF_SUBSYS_HF);
+	}
+	LOG_INF("Triggered HF clock");
+}
 
 K_MSGQ_DEFINE(mouse_msgq, MOUSE_REPORT_COUNT, 2, 1);
 static bool mouse_ready;
@@ -187,6 +269,7 @@ int main(void)
 		LOG_ERR("Failed to initialize USB device");
 		return -ENODEV;
 	}
+	trigger_hf_clock();
 
 	ret = usbd_enable(sample_usbd);
 	if (ret != 0) {
@@ -194,12 +277,14 @@ int main(void)
 		return ret;
 	}
 
-	LOG_DBG("USB device support enabled");
+	LOG_WRN("USB device support enabled");
 
 	while (true) {
 		UDC_STATIC_BUF_DEFINE(report, MOUSE_REPORT_COUNT);
 
 		k_msgq_get(&mouse_msgq, &report, K_FOREVER);
+
+		trigger_hf_clock();
 
 		if (!mouse_ready) {
 			LOG_INF("USB HID device is not ready");
